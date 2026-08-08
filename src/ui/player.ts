@@ -3,8 +3,10 @@
 import { getLang, setLang, t } from './strings.ts';
 import type { DiskSlot } from '../api/webnp2.ts';
 import type { RomEntry } from '../api/roms.ts';
+import { buildKbdRows } from './kbd-layout.ts';
 import { buildFileManagerDialog, type FileManagerCallbacks } from './filemanager.ts';
 import { buildDebuggerDialog, type DebuggerCallbacks } from './debugger.ts';
+import { buildGamepadDialog, type GamepadDialogCallbacks } from './gamepad-ui.ts';
 
 export type { LibraryEntry, LibraryGroup, LibraryNode } from './types.ts';
 import type { LibraryEntry, LibraryGroup, LibraryNode } from './types.ts';
@@ -130,6 +132,8 @@ export interface PlayerCallbacks {
   fileManager: FileManagerCallbacks;
   /** CPUデバッガパネルが使う同期コールバック群。詳細はdebugger.ts参照。 */
   debugger: DebuggerCallbacks;
+  /** ゲームパッド設定ダイアログが使うコールバック群。詳細はgamepad-ui.ts参照。 */
+  gamepad: GamepadDialogCallbacks;
 }
 
 export interface PlayerOptions {
@@ -266,6 +270,9 @@ const ICONS = {
   fileTransfer: 'M3 8h13 M12 4l4 4-4 4 M21 16H8 M12 20l-4-4 4-4',
   // 端末プロンプト風の枠と停止点＝CPUデバッガ。
   debugger: 'M4 5h16v14H4z M7 9l3 3-3 3 M12 15h5 M17 8h.01',
+  // パッド本体(丸角枠)＋十字キー＋丸ボタン2つ＝ゲームパッド設定。
+  gamepad:
+    'M6 8h12a4 4 0 0 1 4 4.5l-.8 4a2.5 2.5 0 0 1-4.4 1.1L15 15H9l-1.8 2.6a2.5 2.5 0 0 1-4.4-1.1l-.8-4A4 4 0 0 1 6 8z M7 12h3 M8.5 10.5v3 M16 11h.01 M18 13h.01',
 };
 
 function iconButton(icon: string, label: string, extraClass = ''): HTMLButtonElement {
@@ -369,112 +376,6 @@ function rescale(canvas: HTMLCanvasElement, stage: HTMLElement, card: HTMLElemen
   card.style.width = `${w}px`;
 }
 
-interface KbdKeyDef {
-  label: string;
-  code: number;
-  w?: number;
-  mod?: 'oneshot' | 'lock';
-}
-
-// PC-98配列ソフトキーボードのキー定義(np2側キーコード)。
-const KBD_ROWS: KbdKeyDef[][] = [
-  [
-    { label: 'ESC', code: 0x00 },
-    { label: 'F1', code: 0x62 },
-    { label: 'F2', code: 0x63 },
-    { label: 'F3', code: 0x64 },
-    { label: 'F4', code: 0x65 },
-    { label: 'F5', code: 0x66 },
-    { label: 'F6', code: 0x67 },
-    { label: 'F7', code: 0x68 },
-    { label: 'F8', code: 0x69 },
-    { label: 'F9', code: 0x6a },
-    { label: 'F10', code: 0x6b },
-    { label: 'STOP', code: 0x60 },
-  ],
-  [
-    { label: '1', code: 0x01 },
-    { label: '2', code: 0x02 },
-    { label: '3', code: 0x03 },
-    { label: '4', code: 0x04 },
-    { label: '5', code: 0x05 },
-    { label: '6', code: 0x06 },
-    { label: '7', code: 0x07 },
-    { label: '8', code: 0x08 },
-    { label: '9', code: 0x09 },
-    { label: '0', code: 0x0a },
-    { label: '-', code: 0x0b },
-    { label: '^', code: 0x0c },
-    { label: '\\', code: 0x0d },
-    { label: 'BS', code: 0x0e, w: 1.4 },
-  ],
-  [
-    { label: 'TAB', code: 0x0f, w: 1.4 },
-    { label: 'Q', code: 0x10 },
-    { label: 'W', code: 0x11 },
-    { label: 'E', code: 0x12 },
-    { label: 'R', code: 0x13 },
-    { label: 'T', code: 0x14 },
-    { label: 'Y', code: 0x15 },
-    { label: 'U', code: 0x16 },
-    { label: 'I', code: 0x17 },
-    { label: 'O', code: 0x18 },
-    { label: 'P', code: 0x19 },
-    { label: '@', code: 0x1a },
-    { label: '[', code: 0x1b },
-    { label: 'RET', code: 0x1c, w: 1.4 },
-  ],
-  [
-    { label: 'CTRL', code: 0x74, w: 1.8, mod: 'oneshot' },
-    { label: 'A', code: 0x1d },
-    { label: 'S', code: 0x1e },
-    { label: 'D', code: 0x1f },
-    { label: 'F', code: 0x20 },
-    { label: 'G', code: 0x21 },
-    { label: 'H', code: 0x22 },
-    { label: 'J', code: 0x23 },
-    { label: 'K', code: 0x24 },
-    { label: 'L', code: 0x25 },
-    { label: ';', code: 0x26 },
-    { label: ':', code: 0x27 },
-    { label: ']', code: 0x28 },
-  ],
-  [
-    { label: 'SHIFT', code: 0x70, w: 2, mod: 'oneshot' },
-    { label: 'Z', code: 0x29 },
-    { label: 'X', code: 0x2a },
-    { label: 'C', code: 0x2b },
-    { label: 'V', code: 0x2c },
-    { label: 'B', code: 0x2d },
-    { label: 'N', code: 0x2e },
-    { label: 'M', code: 0x2f },
-    { label: ',', code: 0x30 },
-    { label: '.', code: 0x31 },
-    { label: '/', code: 0x32 },
-    { label: '_', code: 0x33 },
-  ],
-  [
-    { label: 'CAPS', code: 0x71, mod: 'lock' },
-    { label: 'かな', code: 0x72, mod: 'lock' },
-    { label: 'GRPH', code: 0x73, mod: 'oneshot' },
-    { label: 'NFER', code: 0x51 },
-    { label: 'SPACE', code: 0x34, w: 3.5 },
-    { label: 'XFER', code: 0x35 },
-    { label: 'INS', code: 0x38 },
-    { label: 'DEL', code: 0x39 },
-  ],
-  [
-    { label: 'RUP', code: 0x36 },
-    { label: 'RDN', code: 0x37 },
-    { label: 'HOME', code: 0x3e },
-    { label: 'HELP', code: 0x3f },
-    { label: '←', code: 0x3b },
-    { label: '↓', code: 0x3d },
-    { label: '↑', code: 0x3a },
-    { label: '→', code: 0x3c },
-  ],
-];
-
 export function buildPlayerUI(
   container: HTMLElement,
   callbacks: PlayerCallbacks,
@@ -542,6 +443,8 @@ export function buildPlayerUI(
   const btnFileManager = iconButton(ICONS.fileTransfer, t('toolbarFileManager'));
   const btnDebugger = iconButton(ICONS.debugger, t('toolbarDebugger'), 'debugger-open-btn');
   btnDebugger.setAttribute('data-debugger-open', 'true');
+  // ゲームパッド設定。起動前でも接続確認・割当編集ができるよう常に有効(ファイルマネージャ等と同様)。
+  const btnGamepad = iconButton(ICONS.gamepad, t('toolbarGamepad'));
   // 使い方ページは起動前でも参照できるよう、setToolbarEnabledの無効化対象にはしない。
   // 通常のリンクとして開けるよう<a>要素にする(新規タブオープンをブラウザ標準の挙動に任せる)。
   const btnHelp = iconLinkButton(ICONS.help, t('toolbarHelp'), `help.html?lang=${getLang()}`);
@@ -560,6 +463,7 @@ export function buildPlayerUI(
     btnDiskLibrary,
     btnFileManager,
     btnDebugger,
+    btnGamepad,
     btnHelp,
     btnLang,
   ]);
@@ -796,11 +700,9 @@ export function buildPlayerUI(
   // PC-98配列ソフトキーボード。stageとfooterBarの間に常設(hiddenで開閉)。
   const kbdPanel = el('div', { class: 'kbd-panel hidden' });
   const heldOneshot = new Map<number, HTMLButtonElement>();
-  for (const row of KBD_ROWS) {
-    const rowEl = el('div', { class: 'kbd-row' });
-    for (const def of row) {
-      const keyBtn = el('button', { type: 'button', class: 'kbd-key' }, [def.label]);
-      if (def.w) keyBtn.style.flexGrow = String(def.w);
+  const { rows: kbdRowEls, buttons: kbdKeyButtons } = buildKbdRows();
+  for (const { def, button: keyBtn } of kbdKeyButtons) {
+    {
       if (def.mod) {
         keyBtn.addEventListener('pointerdown', (e) => {
           e.preventDefault();
@@ -837,10 +739,9 @@ export function buildPlayerUI(
         keyBtn.addEventListener('pointercancel', () => release());
         keyBtn.addEventListener('pointerleave', () => release());
       }
-      rowEl.append(keyBtn);
     }
-    kbdPanel.append(rowEl);
   }
+  kbdRowEls.forEach((rowEl) => kbdPanel.append(rowEl));
 
   // WebMSX風: カードは実行画面(キャンバス) + グレーのコンソールバー(ツールバー/FDスロット)のみ。
   // 黒いページヘッダー/グレーのページフッターは index.html 側の全幅要素として別に存在する。
@@ -1355,6 +1256,10 @@ export function buildPlayerUI(
   const debuggerWorkspace = el('div', { class: 'debugger-workspace' }, [card]);
   const debuggerDialog = buildDebuggerDialog(debuggerWorkspace, callbacks.debugger, container);
   btnDebugger.addEventListener('click', () => debuggerDialog.open());
+
+  // ゲームパッド設定。詳細なDOM・状態管理はgamepad-ui.tsへ委譲する(filemanager.tsと同じ流儀)。
+  const gamepadDialog = buildGamepadDialog(container, callbacks.gamepad);
+  btnGamepad.addEventListener('click', () => gamepadDialog.open());
 
   container.append(debuggerWorkspace, progressWrap, statusPanel, romBackdrop, libraryBackdrop, fdLibraryMenu);
 
@@ -1897,6 +1802,9 @@ export function buildPlayerUI(
       btnDebugger.title = t('toolbarDebugger');
       btnDebugger.setAttribute('aria-label', t('toolbarDebugger'));
       debuggerDialog.applyStrings();
+      btnGamepad.title = t('toolbarGamepad');
+      btnGamepad.setAttribute('aria-label', t('toolbarGamepad'));
+      gamepadDialog.applyStrings();
     },
     showMuteBanner() {
       if (muteBannerVisible) return;

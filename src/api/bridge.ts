@@ -2,6 +2,7 @@
 // メッセージ形式は {id, cmd, args} を受け取り、{id, ok, result} または {id, ok:false, error} を返す。
 
 import { encodeTextForDisk, base64ToBytes, bytesToBase64, type DiskSlot, type KeyStep, type WebNP2 } from './webnp2.ts';
+import type { SharedKeyInput } from './shared-key-input.ts';
 
 interface IncomingMessage {
   id?: unknown;
@@ -25,6 +26,7 @@ export class Bridge {
   constructor(
     private np2: WebNP2,
     private canvas: HTMLCanvasElement,
+    private sharedKeyInput: SharedKeyInput,
   ) {}
 
   connect(url: string): void {
@@ -130,9 +132,20 @@ export class Bridge {
         return { done: true };
       case 'key_sequence':
         return await this.np2.runKeySequence((args.steps as KeyStep[]) ?? []);
-      case 'key':
-        this.np2.sendKey(Number(args.code), Boolean(args.down));
+      case 'key': {
+        // ソフトキーボード/ゲームパッドと同じ SharedKeyInput 経由にすることで、自動化APIが
+        // キーを押しっぱなしにしている最中に他の入力源が同じキーを離しても、コアへ早期に
+        // break が送られない(main.ts のコメント参照)。SharedKeyInput自体はisBooted判定を
+        // 持たないため、np2.sendKey()が従来投げていたエラーをここで踏襲する。
+        if (!this.np2.isBooted()) throw new Error('not booted');
+        const code = Number(args.code);
+        if (Boolean(args.down)) {
+          this.sharedKeyInput.press('bridge:key', code);
+        } else {
+          this.sharedKeyInput.release('bridge:key', code);
+        }
         return { done: true };
+      }
       case 'reset':
         this.np2.resetMachine();
         return { done: true };

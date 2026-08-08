@@ -242,6 +242,76 @@ interface Dict {
   fmCloseBtn(): string;
   fmListLoadFailed(args: { message: string }): string;
 
+  // --- ゲームパッド設定 ---
+  /** ツールバーの「ゲームパッド設定」ボタン。 */
+  toolbarGamepad(): string;
+  gamepadDialogTitle(): string;
+  gamepadDialogDescription(): string;
+  gamepadDialogClose(): string;
+  /** パッド未接続時の案内(Chromeは入力があるまでgetGamepads()に列挙しないため)。 */
+  gamepadNoPads(): string;
+  gamepadConnectedTitle(): string;
+  /** ライブ表示の各パッド見出し(パッド名)。Gamepad API index(0始まり)の生値は出さない。 */
+  gamepadLiveTitle(args: { name: string }): string;
+  gamepadPhysicalTitle(): string;
+  /** ライブ表示右カラム(現在コアへ送っているPC-98キー)の見出し。 */
+  gamepadKeysTitle(): string;
+  gamepadEditingPadLabel(): string;
+  gamepadBindingsTitle(): string;
+  /** 割当が1件もないときの一覧表示。 */
+  gamepadBindingsEmpty(): string;
+  /** 割当済み行の未割当キー表示(検出直後、キーをまだ選んでいない状態)。 */
+  gamepadUnassignedKeyLabel(): string;
+  /** 行の[クリア]ボタン(そのバインディングを解除)。 */
+  gamepadClearBtn(): string;
+  gamepadClearBtnTitle(): string;
+  /** 行の[再検出]ボタン(割り当てるキーは変えず、物理入力だけ検出し直す)。 */
+  gamepadRedetectBtn(): string;
+  gamepadRedetectBtnTitle(): string;
+  /** 新規の物理入力を検出して行を追加するボタン。 */
+  gamepadAddBtn(): string;
+  gamepadAddBtnTitle(): string;
+  gamepadCancelBtn(): string;
+  gamepadCancelBtnTitle(): string;
+  gamepadDetectWaiting(): string;
+  /** 新規検出が成功し、下のキーボードでキーを選ぶ番になったときの案内。 */
+  gamepadPendingPickKey(): string;
+  /** 行を選択中、下のキーボードでキーを押すと割り当たることを案内する文言。 */
+  gamepadRowSelectedHint(): string;
+  gamepadDeadzoneLabel(): string;
+  gamepadKeyPickerTitle(): string;
+  /** プリセット適用: カーソルキー+z/x。 */
+  gamepadPresetCursorZxBtn(): string;
+  gamepadPresetCursorZxBtnTitle(): string;
+  /** プリセット適用: テンキー方向+SPACE/ENTER。 */
+  gamepadPresetTenkeySpaceBtn(): string;
+  gamepadPresetTenkeySpaceBtnTitle(): string;
+  gamepadButtonLabel(args: { index: number }): string;
+  gamepadAxisLabel(args: { index: number; dir: string }): string;
+  gamepadAxisInvalidSuffix(): string;
+  /** 未較正の軸(観測開始してから一度も動かされていない)。一度動かせば較正され使えるようになることを短く案内する。 */
+  gamepadAxisUncalibratedSuffix(): string;
+  /** 較正中(一度動かされて静止値の確定待ち)。押しっぱなしの最中に「使えるようになった」と誤解されないようにする。 */
+  gamepadAxisCalibratingSuffix(): string;
+  gamepadPositionalButtonLabel(args: { index: number; position: string }): string;
+  gamepadPosDown(): string;
+  gamepadPosRight(): string;
+  gamepadPosLeft(): string;
+  gamepadPosUp(): string;
+  gamepadPosL(): string;
+  gamepadPosR(): string;
+  gamepadPosL2(): string;
+  gamepadPosR2(): string;
+  gamepadPosSelect(): string;
+  gamepadPosStart(): string;
+  gamepadPosL3(): string;
+  gamepadPosR3(): string;
+  gamepadPosDpadUp(): string;
+  gamepadPosDpadDown(): string;
+  gamepadPosDpadLeft(): string;
+  gamepadPosDpadRight(): string;
+  gamepadPosHome(): string;
+
   // --- ディスク操作エラー(api/fat.ts の DiskError コードに対応) ---
   errD88NotEditable(): string;
   errHddInvalidHeader(args: { format: string }): string;
@@ -450,6 +520,60 @@ const STRINGS: Record<Lang, Dict> = {
     fmDeleteConfirm: ({ names }) => `以下のファイルを削除します: ${names}\nよろしいですか？`,
     fmCloseBtn: () => '閉じる',
     fmListLoadFailed: ({ message }) => `一覧の取得に失敗しました: ${message}`,
+    toolbarGamepad: () => 'ゲームパッド設定',
+    gamepadDialogTitle: () => 'ゲームパッド設定',
+    gamepadDialogDescription: () =>
+      '接続中の各パッドについて、ボタン/軸をPC-98のキーへ割り当てます。設定はブラウザにパッドごと保存されます。',
+    gamepadDialogClose: () => '閉じる',
+    gamepadNoPads: () => 'パッドが検出されていません。パッドのボタンを1回押すと認識されます。',
+    gamepadConnectedTitle: () => '接続中のパッド',
+    gamepadLiveTitle: ({ name }) => name,
+    gamepadPhysicalTitle: () => '物理入力',
+    gamepadKeysTitle: () => 'PC-98側キー出力',
+    gamepadEditingPadLabel: () => '編集するパッド',
+    gamepadBindingsTitle: () => '割当編集',
+    gamepadBindingsEmpty: () => '割当はまだありません。下の[新規検出]から追加してください。',
+    gamepadUnassignedKeyLabel: () => '(未設定)',
+    gamepadClearBtn: () => 'クリア',
+    gamepadClearBtnTitle: () => 'この行の割当を解除します',
+    gamepadRedetectBtn: () => '再検出',
+    gamepadRedetectBtnTitle: () => '次に押した入力へこの行の物理入力を置き換えます(割り当てるキーは変わりません)',
+    gamepadAddBtn: () => '新規検出',
+    gamepadAddBtnTitle: () => '次に押したボタン/軸を新しい行として追加します',
+    gamepadCancelBtn: () => 'キャンセル',
+    gamepadCancelBtnTitle: () => '入力待ちを中止して元に戻ります',
+    gamepadDetectWaiting: () => '入力を待っています…(Escでキャンセル)',
+    gamepadPendingPickKey: () => '検出しました。下のキーボードで割り当てるキーを選んでください。',
+    gamepadRowSelectedHint: () => '行を選択中: 下のキーボードでキーを押すと、この行に割り当てます。',
+    gamepadDeadzoneLabel: () => 'デッドゾーン',
+    gamepadKeyPickerTitle: () => 'PC-98キーボード(クリックで選択、送信はされません)',
+    gamepadPresetCursorZxBtn: () => 'カーソルキー+Z/X',
+    gamepadPresetCursorZxBtnTitle: () => '十字キー/左スティックをカーソルキーへ、A/BをZ/Xへ割り当て直します(既存の割当は消去)',
+    gamepadPresetTenkeySpaceBtn: () => 'テンキー+SPACE',
+    gamepadPresetTenkeySpaceBtnTitle: () => '十字キー/左スティックをテンキー方向へ、A/BをSPACE/ENTERへ割り当て直します(既存の割当は消去)',
+    gamepadButtonLabel: ({ index }) => `ボタン${index}`,
+    gamepadAxisLabel: ({ index, dir }) => `軸${index} ${dir}`,
+    gamepadAxisInvalidSuffix: () => '(無効・範囲外の値)',
+    gamepadAxisUncalibratedSuffix: () => '(未較正・一度動かすと使えます)',
+    gamepadAxisCalibratingSuffix: () => '(較正中・そのまま数秒待ってください)',
+    gamepadPositionalButtonLabel: ({ index, position }) => `#${index} (${position})`,
+    gamepadPosDown: () => '下',
+    gamepadPosRight: () => '右',
+    gamepadPosLeft: () => '左',
+    gamepadPosUp: () => '上',
+    gamepadPosL: () => 'L',
+    gamepadPosR: () => 'R',
+    gamepadPosL2: () => 'L2',
+    gamepadPosR2: () => 'R2',
+    gamepadPosSelect: () => 'Select',
+    gamepadPosStart: () => 'Start',
+    gamepadPosL3: () => 'L3',
+    gamepadPosR3: () => 'R3',
+    gamepadPosDpadUp: () => '十字上',
+    gamepadPosDpadDown: () => '十字下',
+    gamepadPosDpadLeft: () => '十字左',
+    gamepadPosDpadRight: () => '十字右',
+    gamepadPosHome: () => 'Home',
     errD88NotEditable: () => 'D88形式は編集に対応していません。',
     errHddInvalidHeader: ({ format }) => `${format}のヘッダが不正です。`,
     errHddNoFatPartition: () => 'HDDイメージ内にFAT16/12パーティションが見つかりません。',
@@ -658,6 +782,60 @@ const STRINGS: Record<Lang, Dict> = {
     fmDeleteConfirm: ({ names }) => `This will delete the following file(s): ${names}\nContinue?`,
     fmCloseBtn: () => 'Close',
     fmListLoadFailed: ({ message }) => `Failed to load listing: ${message}`,
+    toolbarGamepad: () => 'Gamepad Settings',
+    gamepadDialogTitle: () => 'Gamepad Settings',
+    gamepadDialogDescription: () =>
+      'Assign buttons/axes on each connected gamepad to PC-98 keys. Settings are saved in your browser, per pad.',
+    gamepadDialogClose: () => 'Close',
+    gamepadNoPads: () => 'No pad detected. Press any button on the pad once to have it recognized.',
+    gamepadConnectedTitle: () => 'Connected Pads',
+    gamepadLiveTitle: ({ name }) => name,
+    gamepadPhysicalTitle: () => 'Physical Input',
+    gamepadKeysTitle: () => 'PC-98 Key Output',
+    gamepadEditingPadLabel: () => 'Editing Pad',
+    gamepadBindingsTitle: () => 'Edit Assignment',
+    gamepadBindingsEmpty: () => 'No assignments yet. Use [Add] below to create one.',
+    gamepadUnassignedKeyLabel: () => '(unset)',
+    gamepadClearBtn: () => 'Clear',
+    gamepadClearBtnTitle: () => 'Remove this row\'s assignment',
+    gamepadRedetectBtn: () => 'Redetect',
+    gamepadRedetectBtnTitle: () => 'Replaces this row\'s physical input with the next one you press (the assigned key stays the same)',
+    gamepadAddBtn: () => 'Add',
+    gamepadAddBtnTitle: () => 'Adds a new row for the next button/axis you press',
+    gamepadCancelBtn: () => 'Cancel',
+    gamepadCancelBtnTitle: () => 'Stops waiting for input and returns to normal',
+    gamepadDetectWaiting: () => 'Waiting for input… (Esc to cancel)',
+    gamepadPendingPickKey: () => 'Detected. Pick the key to assign on the keyboard below.',
+    gamepadRowSelectedHint: () => 'Row selected: press a key on the keyboard below to assign it to this row.',
+    gamepadDeadzoneLabel: () => 'Deadzone',
+    gamepadKeyPickerTitle: () => 'PC-98 keyboard (click to select, no keys are sent)',
+    gamepadPresetCursorZxBtn: () => 'Cursor Keys + Z/X',
+    gamepadPresetCursorZxBtnTitle: () => 'Reassigns the D-Pad/left stick to cursor keys and A/B to Z/X (clears existing assignments)',
+    gamepadPresetTenkeySpaceBtn: () => 'Numpad + SPACE',
+    gamepadPresetTenkeySpaceBtnTitle: () => 'Reassigns the D-Pad/left stick to numpad directions and A/B to SPACE/ENTER (clears existing assignments)',
+    gamepadButtonLabel: ({ index }) => `Button ${index}`,
+    gamepadAxisLabel: ({ index, dir }) => `Axis ${index} ${dir}`,
+    gamepadAxisInvalidSuffix: () => '(invalid, out of range)',
+    gamepadAxisUncalibratedSuffix: () => '(not calibrated yet — move it once to use)',
+    gamepadAxisCalibratingSuffix: () => '(calibrating — please wait a few seconds)',
+    gamepadPositionalButtonLabel: ({ index, position }) => `#${index} (${position})`,
+    gamepadPosDown: () => 'Down',
+    gamepadPosRight: () => 'Right',
+    gamepadPosLeft: () => 'Left',
+    gamepadPosUp: () => 'Up',
+    gamepadPosL: () => 'L',
+    gamepadPosR: () => 'R',
+    gamepadPosL2: () => 'L2',
+    gamepadPosR2: () => 'R2',
+    gamepadPosSelect: () => 'Select',
+    gamepadPosStart: () => 'Start',
+    gamepadPosL3: () => 'L3',
+    gamepadPosR3: () => 'R3',
+    gamepadPosDpadUp: () => 'D-Pad Up',
+    gamepadPosDpadDown: () => 'D-Pad Down',
+    gamepadPosDpadLeft: () => 'D-Pad Left',
+    gamepadPosDpadRight: () => 'D-Pad Right',
+    gamepadPosHome: () => 'Home',
     errD88NotEditable: () => 'The D88 format is not supported for editing.',
     errHddInvalidHeader: ({ format }) => `Invalid ${format} header.`,
     errHddNoFatPartition: () => 'No FAT16/12 partition was found in this HDD image.',

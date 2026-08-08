@@ -1051,6 +1051,23 @@ footer.app-footer a {
   border-color: var(--accent);
   color: #ffffff;
 }
+/* テンキーブロック(通常キー行より少数キーのため、flex:1で引き伸ばすと行ごとに幅がバラつき
+   通常の数字キー行と見分けが付かなくなる)。固定幅・左寄せにして通常行と区別しつつ、
+   薄い背景で「別ブロック」であることを視覚化する。 */
+.kbd-row-tenkey {
+  justify-content: flex-start;
+  padding-top: 2px;
+  border-top: 1px dashed var(--footer-btn-border);
+}
+.kbd-row-tenkey .kbd-key {
+  flex: 0 1 48px;
+  min-width: 32px;
+}
+@media (max-width: 640px) {
+  /* 幅が狭い画面では固定幅だと右側が余って不格好になる/逆に入りきらないため、
+     通常行と同じ「flex:1で行幅いっぱいに均等配分」に戻して破綻を防ぐ。 */
+  .kbd-row-tenkey .kbd-key { flex: 1 1 0; }
+}
 #canvas { touch-action: none; }  /* 既存の #canvas ルールに追記でも可 */
 .toolbar button, .fd-slot .icon-btn { touch-action: manipulation; }
 
@@ -1378,6 +1395,237 @@ footer.app-footer a {
   .fm-transfer-controls { flex-direction: row; }
   /* 縦積み時は転送方向も上下になるため矢印を回転(→=下のディスクへ、←=上のホストへ) */
   .fm-transfer-btn { transform: rotate(90deg); }
+}
+
+/* ゲームパッド設定ダイアログ。rom-modal系の見た目を踏襲しつつ、上段(割当一覧)+下段(PC-98
+   キーボードピッカー)の縦積みレイアウトのため幅広に。 */
+.gp-modal-backdrop {
+  z-index: 110;
+}
+
+.gp-modal {
+  max-width: 640px;
+  width: 100%;
+}
+
+.gp-title {
+  margin: 0;
+  font-size: 16px;
+}
+
+.gp-desc {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+.gp-hint {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.gp-live-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 160px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.gp-live-title {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gp-live-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.gp-live-col {
+  flex: 1 1 200px;
+  min-width: 160px;
+}
+
+.gp-live-col-title {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-bottom: 3px;
+}
+
+.gp-btns, .gp-axes, .gp-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.gp-btn, .gp-axis, .gp-key, .gp-target {
+  font-size: 10px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-dim);
+}
+
+.gp-btn.active, .gp-axis.active, .gp-key.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+.gp-axis.invalid { opacity: 0.5; }
+.gp-axis.calibrating { border-color: var(--accent-dim); color: var(--accent-dim); }
+.gp-axis.uncalibrated { opacity: 0.7; }
+
+.gp-key-empty {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.gp-edit-pad-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.gp-edit-pad-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.gp-deadzone-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.gp-deadzone-input {
+  flex: 1 1 auto;
+}
+
+.gp-deadzone-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  min-width: 3.5em;
+  text-align: right;
+}
+
+.gp-preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.gp-preset-btn, .gp-detect-btn, .gp-clear-btn {
+  padding: 5px 10px;
+  font-size: 11px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.gp-preset-btn:hover, .gp-detect-btn:hover, .gp-clear-btn:hover {
+  background: var(--border);
+}
+
+.gp-clear-btn {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.gp-clear-btn:hover {
+  background: var(--danger);
+  color: #ffffff;
+}
+
+.gp-bind-table {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.gp-bind-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.gp-bind-row.selected {
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.gp-bind-row-main {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.gp-bind-source {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gp-bind-key {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: bold;
+}
+
+.gp-generic-row, .gp-pending-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.gp-pending-hint {
+  color: var(--accent-dim);
+}
+
+.gp-detect-status {
+  font-size: 11px;
+  color: var(--accent-dim);
+}
+
+.gp-picker-title {
+  margin-top: 4px;
+}
+
+/* ピッカーはソフトキーボードと同じ .kbd-panel/.kbd-row/.kbd-key を流用する(見た目を揃えるため)。
+   非活性時(編集対象の行が未選択)は操作不能であることを視覚的に示す。 */
+.gp-picker {
+  border-top: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.gp-picker.gp-picker-inactive {
+  opacity: 0.45;
+  pointer-events: none;
 }
 
 /* ?perf=1 の性能計測オーバーレイ(デバッグ用) */

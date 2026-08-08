@@ -41,6 +41,24 @@ export const NAMED_KEYS: Record<string, number> = {
   KANA: 0x72,
   GRPH: 0x73,
   CTRL: 0x74,
+  // テンキー(出典: NP2kai sdl/kbtrans.c:109-126)。
+  KP_MINUS: 0x40,
+  KP_DIVIDE: 0x41,
+  KP7: 0x42,
+  KP8: 0x43,
+  KP9: 0x44,
+  KP_MULTIPLY: 0x45,
+  KP4: 0x46,
+  KP5: 0x47,
+  KP6: 0x48,
+  KP_PLUS: 0x49,
+  KP1: 0x4a,
+  KP2: 0x4b,
+  KP3: 0x4c,
+  KP_EQUALS: 0x4d,
+  KP0: 0x4e,
+  KP_COMMA: 0x4f,
+  KP_PERIOD: 0x50,
 };
 
 // ASCII一文字 → PC-98スキャンコードの単純マップ(shiftなしのもの)。

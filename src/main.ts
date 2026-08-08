@@ -29,6 +29,17 @@ import { describeError, getLang, t, type StringKey } from './ui/strings.ts';
 import { deleteRom, listRoms, loadRomsForBoot, saveRomFiles } from './api/roms.ts';
 import { createFormattedFd, createFormattedHdd } from './api/fat.ts';
 import type { FmTarget } from './ui/filemanager.ts';
+import {
+  type Binding,
+  defaultProfileFor,
+  type GamepadProfile,
+  GamepadManager,
+  loadGamepadStore,
+  saveGamepadStore,
+  type Source,
+} from './api/gamepad.ts';
+import { SharedKeyInput } from './api/shared-key-input.ts';
+import type { GamepadDialogCallbacks } from './ui/gamepad-ui.ts';
 
 interface PendingImage {
   slot: DiskSlot;
@@ -1356,6 +1367,134 @@ async function handleCreateBlankHdd(): Promise<void> {
   }
 }
 
+// --- ゲームパッド ---
+//
+// WebNP2 にはキー入力源が「ソフトキーボード」「テキスト貼り付け」「ゲームパッド」の3系統ある。
+// このうちソフトキーボード(onVirtualKey)とゲームパッドは、押しっぱなし(down)→離す(up)の
+// 「保持」を伴う入力源で、同じPC-98キーを2つの入力源が同時に押していて片方だけ離した場合、
+// 素朴に coreKey(down/up) を呼ぶとその瞬間にコアへbreakが送られてしまい、もう一方の入力源が
+// まだ押しているつもりのキーが上がってしまう不具合が起きる(shared-key-input.ts参照)。
+// これを避けるため、両方を1つの SharedKeyInput 経由で np2.sendKey() へ束ねる
+// (参照カウントで、最後の入力源が離すまでbreakを送らない)。
+// なお「テキスト貼り付け」(np2.pasteText())は corePushKeyBuffer/corePushKeyBufferPair で
+// BIOSキーバッファへ1文字ずつ即時投入するだけの経路で、down/upを保持しない
+// (ソフトキーボード/ゲームパッドのように「押されている間」の状態を持たない)ため、構造的に
+// 上記の固着とは無縁で、SharedKeyInputを介する対象にならない(main.ts側でこの経路には触れていない)。
+const sharedKeyInput = new SharedKeyInput((code, down) => {
+  try {
+    np2.sendKey(code, down);
+  } catch {
+    // 起動前は無視(onVirtualKeyの従来挙動を踏襲)。
+  }
+});
+
+// Gamepad.id ごとの GamepadManager。挿し替えても両方の設定が残るよう、キーはポート番号ではなくidにする。
+const gamepadManagers = new Map<string, GamepadManager>();
+// 各パッドについて、直前フレームでSharedKeyInputへpressした(=まだreleaseしていない)PC-98キー集合。
+const gamepadPrevKeys = new Map<string, Set<number>>();
+
+function gamepadSourceId(pad: Gamepad): string {
+  return `gamepad:${pad.id}`;
+}
+
+/** 保存済みプロファイルが無ければ既定値(defaultProfileFor)で作る。 */
+function managerForPad(pad: Gamepad): GamepadManager {
+  let manager = gamepadManagers.get(pad.id);
+  if (!manager) {
+    const store = loadGamepadStore();
+    const profile: GamepadProfile = store.pads[pad.id] ?? defaultProfileFor(pad);
+    manager = GamepadManager.fromProfile(profile);
+    gamepadManagers.set(pad.id, manager);
+  }
+  return manager;
+}
+
+function saveGamepadProfile(pad: Gamepad): void {
+  const store = loadGamepadStore();
+  store.pads[pad.id] = managerForPad(pad).toProfile();
+  saveGamepadStore(store);
+}
+
+let gamepadRafId: number | null = null;
+
+/**
+ * 接続中の全パッドについて、keysForPad()の今フレームの集合と前フレームとの差分を取り、
+ * 増えた分をpress・減った分をreleaseする(main.ts側の唯一のコアへの実注入経路。
+ * gamepad-ui.tsのダイアログ用RAFループとは別物で、そちらは表示専用でコアへは送らない)。
+ * コアが起動していない間はキー入力を送っても意味が無い(sendKeyが例外を投げるだけ)ため、
+ * 無駄なMap操作を避けてスキップする。
+ */
+function gamepadTick(): void {
+  if (np2.isBooted()) {
+    for (const pad of navigator.getGamepads()) {
+      if (!pad) continue;
+      const manager = managerForPad(pad);
+      const keys = manager.keysForPad(pad);
+      const prev = gamepadPrevKeys.get(pad.id) ?? new Set<number>();
+      const source = gamepadSourceId(pad);
+      for (const code of keys) {
+        if (!prev.has(code)) sharedKeyInput.press(source, code);
+      }
+      for (const code of prev) {
+        if (!keys.has(code)) sharedKeyInput.release(source, code);
+      }
+      gamepadPrevKeys.set(pad.id, keys);
+    }
+  }
+  gamepadRafId = requestAnimationFrame(gamepadTick);
+}
+
+/** コアが起動済み(=gamepadTickの結果が意味を持つ)かつパッドが1つ以上接続中なら、ループを開始する。 */
+function ensureGamepadLoopRunning(): void {
+  if (gamepadRafId !== null) return;
+  if (!np2.isBooted()) return;
+  if (![...navigator.getGamepads()].some((p) => p)) return;
+  gamepadRafId = requestAnimationFrame(gamepadTick);
+}
+
+function stopGamepadLoopIfIdle(): void {
+  if (gamepadRafId === null) return;
+  if ([...navigator.getGamepads()].some((p) => p)) return;
+  cancelAnimationFrame(gamepadRafId);
+  gamepadRafId = null;
+}
+
+window.addEventListener('gamepadconnected', () => {
+  ensureGamepadLoopRunning();
+});
+window.addEventListener('gamepaddisconnected', (e) => {
+  const pad = e.gamepad;
+  sharedKeyInput.releaseSource(gamepadSourceId(pad));
+  gamepadPrevKeys.delete(pad.id);
+  stopGamepadLoopIfIdle();
+});
+
+const gamepadDialogCallbacks: GamepadDialogCallbacks = {
+  getDeadzone: (pad) => managerForPad(pad).getDeadzone(),
+  setDeadzone: (pad, value) => {
+    managerForPad(pad).setDeadzone(value);
+    saveGamepadProfile(pad);
+  },
+  getAllBindings: (pad) => managerForPad(pad).getAllBindings(),
+  addBinding: (pad, source: Source, binding: Binding) => {
+    managerForPad(pad).addBinding(source, binding);
+    saveGamepadProfile(pad);
+  },
+  removeBinding: (pad, source: Source, binding: Binding) => {
+    managerForPad(pad).removeBinding(source, binding);
+    saveGamepadProfile(pad);
+  },
+  getAxisState: (pad, axisIndex) => managerForPad(pad).axisState(pad, axisIndex),
+  getActiveKeys: (pad) => managerForPad(pad).keysForPad(pad),
+  resetToPreset: (pad, preset) => {
+    // ダイアログの[カーソルキー+Z/X]/[テンキー+SPACE]ボタンで明示的に選んだプリセットを
+    // そのまま適用する(defaultProfileFor()のような既知パッド優先のフォールバックはしない。
+    // ユーザーが明示的に選んだ結果を、パッドの型番判定で上書きしては操作の意味が無い)。
+    managerForPad(pad).resetToPreset(preset);
+    saveGamepadProfile(pad);
+  },
+};
+
 async function handlePasteText(text: string): Promise<void> {
   try {
     const { skipped } = await np2.pasteText(text);
@@ -1428,11 +1567,11 @@ function init(): void {
         coreMouseButton(button, down ? 1 : 0);
       },
       onVirtualKey: (code, down) => {
-        try {
-          np2.sendKey(code, down);
-        } catch {
-          // 起動前は無視
-        }
+        // ゲームパッド(main.ts下部のgamepadTick)と同じ SharedKeyInput を経由させる。
+        // 同じPC-98キーをソフトキーボードとゲームパッドが同時に押していても、
+        // 片方が離しただけではコアへbreakを送らない(参照カウント)ようにするため。
+        if (down) sharedKeyInput.press('softkeyboard', code);
+        else sharedKeyInput.release('softkeyboard', code);
       },
       onTouchClick: (x, y, button) =>
         queueTouchOp(async () => {
@@ -1498,6 +1637,7 @@ function init(): void {
         runUntilBreakpoint: (maxSteps) => debuggerController.runUntilBreakpoint(maxSteps),
         readMemory: (addr, len) => debuggerController.readMemory(addr, len),
       },
+      gamepad: gamepadDialogCallbacks,
     },
     { offerFreeDosChoice: !diskSpecified, trackingEnabled: params.get('mousetrack') !== '0' },
   );
@@ -1522,6 +1662,10 @@ function init(): void {
     updatePasteFeature();
     startPasteFeaturePolling();
     startDiskLampPolling();
+    // 起動前から接続されていたパッドをここで拾う(gamepadconnectedは起動前に既に発火済みのため)。
+    // WebNP2のコアは1セッションで1回しかbootできない(以後isBootedがfalseに戻ることはない)ため、
+    // ここで一度キー入力ポーリングを開始すれば十分(以後は起動/未起動でON/OFFし直す必要が無い)。
+    ensureGamepadLoopRunning();
     // AudioWorklet低遅延音声出力へ切り替える(非対応環境は従来のSDL経路のまま)。
     if (workletEnabled) {
       void startWorkletAudio(alatParam).then((ok) => {
@@ -1534,14 +1678,14 @@ function init(): void {
   np2.on('stateLoaded', () => setStatusT('statusStateLoaded'));
   if (bridgeUrl) {
     np2.on('booted', () => {
-      const bridge = new Bridge(np2, ui.canvas);
+      const bridge = new Bridge(np2, ui.canvas, sharedKeyInput);
       bridge.connect(bridgeUrl);
     });
   }
   // ページ内JSからの自動操作用デバッグAPI(WebPaint98等)。Bridgeのコマンド群を
   // WebSocketなしで直接呼べる。例: await window.np2debug.call('screenshot')
   {
-    const debugBridge = new Bridge(np2, ui.canvas);
+    const debugBridge = new Bridge(np2, ui.canvas, sharedKeyInput);
     (window as unknown as { np2debug: unknown }).np2debug = {
       call: (cmd: string, args?: Record<string, unknown>) => debugBridge.exec(cmd, args),
       np2,
