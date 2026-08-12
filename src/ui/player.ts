@@ -194,6 +194,16 @@ export interface PlayerUI {
   setMouseCaptured(captured: boolean): void;
   /** ホストキー再割り当てが有効かどうかをツールバーの入力設定ボタンにバッジ(小さいドット)で示す。 */
   setHostKeyBadge(enabled: boolean): void;
+  /**
+   * ソフトキーボード上のキーの押下表示(activeクラス)を更新する。
+   * SharedKeyInput の出力コールバック(main.ts)から呼ばれる唯一の窓口で、
+   * クリック/ホストキー再割り当て/ゲームパッドいずれの入力源経由でも
+   * ここを通ればソフトキーボードの表示に反映される。
+   * 同じスキャンコードのボタンが複数存在する場合は該当ボタン全てに反映する
+   * (現状のkbd-layout.tsではスキャンコードは重複しないが、将来の重複にも耐える設計)。
+   * パネルが非表示中でもボタン自身のクラスは更新しておき、再表示時に状態が正しく見えるようにする。
+   */
+  setKeyIndicator(code: number, down: boolean): void;
 }
 
 const HDD_EXTENSIONS = ['.thd', '.hdi', '.nhd', '.hdd'];
@@ -749,6 +759,14 @@ export function buildPlayerUI(
   const kbdPanel = el('div', { class: 'kbd-panel hidden' });
   const heldOneshot = new Map<number, HTMLButtonElement>();
   const { rows: kbdRowEls, buttons: kbdKeyButtons } = buildKbdRows();
+  // スキャンコード→ボタン群。setKeyIndicator() の参照テーブル。
+  // 同じコードのボタンが複数あっても(現状kbd-layout.tsには無いが)全部に反映できるよう配列で持つ。
+  const kbdButtonsByCode = new Map<number, HTMLButtonElement[]>();
+  for (const { def, button: keyBtn } of kbdKeyButtons) {
+    const list = kbdButtonsByCode.get(def.code);
+    if (list) list.push(keyBtn);
+    else kbdButtonsByCode.set(def.code, [keyBtn]);
+  }
   for (const { def, button: keyBtn } of kbdKeyButtons) {
     {
       if (def.mod) {
@@ -1877,6 +1895,11 @@ export function buildPlayerUI(
     },
     setHostKeyBadge(enabled: boolean) {
       hostKeyBadge.classList.toggle('hidden', !enabled);
+    },
+    setKeyIndicator(code: number, down: boolean) {
+      const buttons = kbdButtonsByCode.get(code);
+      if (!buttons) return;
+      for (const btn of buttons) btn.classList.toggle('active', down);
     },
     setToolbarEnabled(enabled: boolean) {
       toolbarEnabled = enabled;

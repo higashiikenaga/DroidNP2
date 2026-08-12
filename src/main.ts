@@ -1394,7 +1394,12 @@ async function handleCreateBlankHdd(): Promise<void> {
 // BIOSキーバッファへ1文字ずつ即時投入するだけの経路で、down/upを保持しない
 // (ソフトキーボード/ゲームパッドのように「押されている間」の状態を持たない)ため、構造的に
 // 上記の固着とは無縁で、SharedKeyInputを介する対象にならない(main.ts側でこの経路には触れていない)。
+// SharedKeyInputの出力(参照カウントで束ねた後の確定状態)は、実際にゲストへ届くキーの
+// 唯一の窓口であると同時に、ソフトキーボードの押下表示を更新する唯一の窓口でもある。
+// ここでフックすることで、クリック/ホストキー再割り当て/ゲームパッドいずれの入力源経由でも
+// 個別配線せずソフトキーボードが光る(逆に、閉経路のうち一部だけ光らない、という漏れが起きない)。
 const sharedKeyInput = new SharedKeyInput((code, down) => {
+  ui.setKeyIndicator(code, down);
   try {
     np2.sendKey(code, down);
   } catch {
