@@ -312,6 +312,7 @@
               すぐに試す）の2択が、URLでディスクを指定している場合は単一の
               「クリックして起動」ボタンが表示されます。ライブラリに保存済みの
               イメージがあれば「保存済みディスクから起動」も表示されます。
+              起動するのはこれらのボタンを押した場合だけで、余白をクリックしても起動しません。
             </p>
             <img src="./help/overlay.png" alt="起動オーバーレイ。そのまま起動/FreeDOS(98)で起動などの選択ボタンが並ぶ" />
             <p>
@@ -329,6 +330,7 @@
               disk is specified via URL, a single "Click to Start" button is shown
               instead. If saved images exist in the library, a "Boot from Saved
               Disk" button also appears.
+              Only these buttons start the emulator; clicking empty overlay space does nothing.
             </p>
             <img src="./help/overlay-en.png" alt="Start overlay showing Start As-Is / Start with FreeDOS(98) choices" />
             <p>
@@ -436,7 +438,7 @@
           <div class="lang-ja">
             <h2>ファイル転送（このブラウザ⇔ディスクイメージ）</h2>
             <p>
-              ツールバーの「ファイル転送」ボタンから、FTPクライアント風の
+              「…」→「ディスク」→「ファイル転送」から、FTPクライアント風の
               2ペインダイアログを開けます。上/左ペインが「このブラウザ」、
               下/右ペインが「ディスクイメージ(PC-98側)」です。
             </p>
@@ -482,7 +484,7 @@
           <div class="lang-en">
             <h2>File transfer (browser ⇔ disk image)</h2>
             <p>
-              The "File Transfer" toolbar button opens an FTP-client-style
+              More (…) → Disk → File Transfer opens an FTP-client-style
               two-pane dialog. The top/left pane is "This browser" and the
               bottom/right pane is "Disk image (PC-98 side)".
             </p>
@@ -534,8 +536,13 @@
         <!-- 4. ツールバーのボタン一覧 -->
         <section class="help-card">
           <div class="lang-ja">
-            <h2>ツールバーのボタン一覧</h2>
+            <h2>ツールバーと「…」メニュー</h2>
             <img src="./help/overview.png" alt="プレイヤー全体像。ツールバーのアイコンが並ぶ" />
+            <p>
+              常時表示はリセット／フルスクリーン／ソフトキーボード／スクリーンショット／「…」です。
+              「…」内は入力／ディスク／ステートの3グループと、ROM登録／デバッガ／使い方／言語の
+              直結行です。言語行は地球儀アイコンと現在値を表示します。
+            </p>
             <table class="btn-table">
               <thead>
                 <tr><th></th><th>ボタン</th><th>説明</th></tr>
@@ -544,8 +551,13 @@
             </table>
           </div>
           <div class="lang-en">
-            <h2>Toolbar buttons</h2>
+            <h2>Toolbar and More menu</h2>
             <img src="./help/overview-en.png" alt="Player overview with the toolbar icons" />
+            <p>
+              Reset, Fullscreen, On-screen Keyboard, Screenshot, and More (…) stay visible.
+              More contains Input, Disk, and State groups plus direct rows for ROM Files,
+              Debugger, Help, and Language. Language shows a globe and the current value.
+            </p>
             <table class="btn-table">
               <thead>
                 <tr><th></th><th>Button</th><th>Description</th></tr>
@@ -570,7 +582,7 @@
               <strong>2本指タップ</strong>は右クリックです。
             </p>
             <p>
-              ツールバーのキーボードアイコンから、PC-98配列のソフトキーボードを
+              ツールバーのキーボードアイコンから、テンキーを含むPC-98配列のソフトキーボードを
               開閉できます。SHIFT/CTRL/GRPHは1回タップすると次の1打だけに適用される
               ワンショット(点灯表示で確認できます)、CAPS/かなはロックトグルです。
             </p>
@@ -578,6 +590,22 @@
               実機と同様、キーを押しっぱなしにすると一定時間後から連続入力される
               キーリピートが働きます(物理キーボードでも同様です)。
             </p>
+            <p>
+              「…」→「入力」→「入力設定」には、ゲームパッド／キーボード／バーチャルパッドの
+              3タブがあります。物理ゲームパッドのボタン・軸やホストの物理キーをPC-98キーへ
+              割り当てられ、割当先は共通のPC-98配列キーピッカーから選びます。ホストキー再割り当ては
+              既定OFFで、組み込みの「テンキー移動(矢印キー→テンキー)」などを複製して編集できます。
+            </p>
+            <img src="./help/input-settings.png" alt="ゲームパッド・キーボード・バーチャルパッドの3タブを持つ入力設定ダイアログ" />
+            <p>
+              バーチャルパッドは縦持ちでは画面の下、横持ちでは左右の余白へ自動配置されます。
+              ダーク背景の上へ表示されるため、白系の操作部も見分けやすくなっています。
+              横持ちで画面が狭い場合、FDD/HDDのドライブ名を残したまま操作ボタンが複数段に折り返されます。
+              ソフトキーボードかパッドの表示中だけ、キーボードボタン直後に⌨／🎮の切替チップが現れます。
+              パッド表示中に🎮をもう一度押すと、プロファイル選択と「割当を編集」を開けます。
+            </p>
+            <img src="./help/virtual-pad.png" alt="スマートフォン縦持ちでゲーム画面の下に表示されたバーチャルパッド" />
+            <img src="./help/virtual-pad-landscape.png" alt="スマートフォン横持ちでゲーム画面の左右に表示されたバーチャルパッド" />
           </div>
           <div class="lang-en">
             <h2>Using on a smartphone</h2>
@@ -596,13 +624,31 @@
               The keyboard icon in the toolbar opens/closes a PC-98 layout
               on-screen keyboard. SHIFT/CTRL/GRPH are one-shot modifiers that
               apply to only the next keystroke (shown lit while active), while
-              CAPS/Kana are lock toggles.
+              CAPS/Kana are lock toggles. The PC-98 numeric keypad is included.
             </p>
             <p>
               Just like the real hardware, holding a key down triggers key
               repeat after a short delay (this also applies to a physical
               keyboard).
             </p>
+            <p>
+              More (…) → Input → Input Settings has three tabs: Gamepad, Keyboard,
+              and Virtual Pad. Map physical gamepad buttons/axes or host keys to
+              PC-98 keys using the shared PC-98 keyboard picker. Host-key remapping
+              is off by default and includes a built-in “Tenkey Movement
+              (Arrows → Tenkey)” profile that you can duplicate and edit.
+            </p>
+            <img src="./help/input-settings-en.png" alt="Input Settings dialog with Gamepad, Keyboard, and Virtual Pad tabs" />
+            <p>
+              In portrait, the Virtual Pad appears below the screen; in landscape,
+              it uses the left and right margins. The dark page background keeps its
+              light controls visible. When space is tight in landscape, each drive name
+              remains visible while its FDD/HDD action buttons wrap onto extra rows. A ⌨ / 🎮 switch appears immediately
+              after the keyboard button only while either panel is visible. Press 🎮
+              again while the pad is active to choose a profile or edit assignments.
+            </p>
+            <img src="./help/virtual-pad-en.png" alt="Virtual Pad below the game screen on a phone in portrait orientation" />
+            <img src="./help/virtual-pad-landscape-en.png" alt="Virtual Pad on both sides of the game screen on a phone in landscape orientation" />
           </div>
         </section>
 
@@ -611,7 +657,7 @@
           <div class="lang-ja">
             <h2>テキスト送信（日本語入力）</h2>
             <p>
-              吹き出しアイコンのボタン、または <strong>Shiftキーを2回連続</strong>
+              「…」→「入力」の「テキスト送信」、または <strong>Shiftキーを2回連続</strong>
               (0.5秒以内、間に他のキーを挟まない)で押すと、送信バーが開きます。
             </p>
             <img src="./help/paste-bar.png" alt="テキスト送信バー。入力欄・Enter付きチェック・送信/閉じるボタン" />
@@ -633,7 +679,7 @@
           <div class="lang-en">
             <h2>Sending text (typing Japanese)</h2>
             <p>
-              Click the speech-bubble button, or press <strong>Shift twice in a
+              Choose More (…) → Input → Send Text, or press <strong>Shift twice in a
               row</strong> (within 0.5 seconds, no other key in between) to open
               the send-text bar.
             </p>
@@ -660,7 +706,7 @@
           <div class="lang-ja">
             <h2>セーブと続きから遊ぶ</h2>
             <p>
-              ツールバーの「ステート保存」「ステート復元」ボタンで、実行状態を
+              「…」→「ステート」の「ステート保存」「ステート復元」で、実行状態を
               スロットへスナップショット保存・復元できます。
             </p>
             <p>
@@ -723,7 +769,7 @@
           <div class="lang-en">
             <h2>Saving and resuming</h2>
             <p>
-              Use the "Save State" and "Load State" toolbar buttons to snapshot
+              Use More (…) → State → Save State / Load State to snapshot
               and restore the running state to/from a slot.
             </p>
             <p>
@@ -793,7 +839,7 @@
               デスクトップ版NP2kaiで使っていたROM/素材ファイル
               (<code>bios.rom</code>, <code>itf.rom</code>, <code>sound.rom</code>,
               <code>font.rom</code>, <code>2608_*.wav</code> 等)をお持ちの場合、
-              ツールバーの「ROM登録」ダイアログから登録できます。ファイルは
+              「…」直下の「ROM登録」ダイアログから登録できます。ファイルは
               ブラウザ内(IndexedDB)にのみ保存され、次回以降の起動時に自動で
               組み込まれます。サーバーには送信されません。反映にはページの
               再読み込みが必要です。
@@ -805,7 +851,7 @@
               If you have ROM/asset files used by the desktop version of NP2kai
               (<code>bios.rom</code>, <code>itf.rom</code>, <code>sound.rom</code>,
               <code>font.rom</code>, <code>2608_*.wav</code>, etc.), you can
-              register them via the "ROM Files" toolbar dialog. Files are saved
+              register them via More (…) → ROM Files. Files are saved
               only in your browser (IndexedDB) and automatically loaded on future
               starts. Nothing is sent to any server. Reload the page for changes
               to take effect.
@@ -897,7 +943,7 @@
             <ul>
               <li><strong>音が出ない</strong> — ブラウザの制限により、最初のクリック（または自動起動時はクリック/キー入力）まで音声はミュートです。</li>
               <li><strong>URL指定イメージの取得に失敗する</strong> — <code>hdd</code>/<code>fd1</code>/<code>fd2</code>のURLはCORS(<code>Access-Control-Allow-Origin</code>)が有効な配信元である必要があります。</li>
-              <li><strong>マウスカーソルがズレる</strong> — ツールバーの「マウス再同期」ボタンで基準を作り直せます。</li>
+              <li><strong>マウスカーソルがズレる</strong> — 「…」→「入力」→「マウス再同期」で基準を作り直せます。</li>
               <li><strong>全角文字が化ける</strong> — 「テキスト送信（日本語入力）」の章を参照してください。「日本語入力を有効化」でゲスト側にヘルパーを導入すると解決します。</li>
             </ul>
           </div>
@@ -906,7 +952,7 @@
             <ul>
               <li><strong>No sound</strong> — Due to browser restrictions, audio stays muted until your first click (or, for auto-start, until your first click/key press).</li>
               <li><strong>Fetching a URL-specified image fails</strong> — URLs given via <code>hdd</code>/<code>fd1</code>/<code>fd2</code> must be served from an origin with CORS (<code>Access-Control-Allow-Origin</code>) enabled.</li>
-              <li><strong>The mouse cursor drifts</strong> — Use the "Resync mouse" toolbar button to re-establish the reference point.</li>
+              <li><strong>The mouse cursor drifts</strong> — Use More (…) → Input → Resync Mouse to re-establish the reference point.</li>
               <li><strong>Full-width characters come out garbled</strong> — See the "Sending text (typing Japanese)" section above. Installing the guest helper via "Enable full-width input" fixes this.</li>
             </ul>
           </div>
@@ -992,77 +1038,91 @@
             icon: 'M6 10V19H18V10 M12 3v6 M9 6l3 3 3-3',
             ja: 'ステート保存',
             en: 'Save State',
-            descJa: '現在の実行状態(CPU/メモリ/画面等)をスロットへスナップショット保存します。',
-            descEn: 'Snapshots the current running state (CPU/memory/screen, etc.) into a slot.',
+            descJa: '「…」→「ステート」から、現在の実行状態(CPU/メモリ/画面等)をスロットへスナップショット保存します。',
+            descEn: 'Under More (…) → State, snapshots the current running state (CPU/memory/screen, etc.) into a slot.',
           },
           {
             icon: 'M6 10V19H18V10 M12 9V3 M9 6l3-3 3 3',
             ja: 'ステート復元',
             en: 'Load State',
-            descJa: '保存済みのスロットから実行状態を復元します。',
-            descEn: 'Restores the running state from a previously saved slot.',
+            descJa: '「…」→「ステート」から、保存済みのスロットの実行状態を復元します。',
+            descEn: 'Under More (…) → State, restores the running state from a previously saved slot.',
           },
           {
             icon: 'M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z M12 17a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z',
             ja: 'スクリーンショット',
             en: 'Screenshot',
-            descJa: '現在の画面を640x400のPNG画像として保存します。',
-            descEn: 'Saves the current screen as a 640x400 PNG image.',
+            descJa: '現在の画面を、画面モードに応じた640x400または640x480のPNG画像として保存します。',
+            descEn: 'Saves the current screen as a 640x400 or 640x480 PNG image, matching the active video mode.',
+          },
+          {
+            icon: 'M5 12h.01 M12 12h.01 M19 12h.01',
+            ja: 'その他',
+            en: 'More',
+            descJa: '入力／ディスク／ステートのグループと、ROM登録／デバッガ／使い方／言語の直結行を開きます。',
+            descEn: 'Opens the Input, Disk, and State groups plus direct rows for ROM Files, Debugger, Help, and Language.',
           },
           {
             icon: 'M12 3a6 6 0 0 1 6 6v6a6 6 0 0 1-12 0V9a6 6 0 0 1 6-6z M12 3v7 M12 7v3',
             ja: 'マウスキャプチャ',
             en: 'Capture Mouse',
             descJa:
-              '画面をPC-98バスマウスとしてクリックロックし、マウス操作をゲストへ送ります。画面の右ダブルクリックでも開始できます。Escキーで解除します。',
+              '「…」→「入力」から、画面をPC-98バスマウスとしてクリックロックします。画面の右ダブルクリックでも開始でき、Escキーで解除します。',
             descEn:
-              'Locks the pointer to the screen and emulates it as a PC-98 bus mouse. Right double-click the screen to start it too. Press Esc to release.',
+              'Under More (…) → Input, locks the pointer to the screen and emulates it as a PC-98 bus mouse. Right double-click the screen to start it too; press Esc to release.',
           },
           {
             icon: 'M12 3v4 M12 17v4 M3 12h4 M17 12h4 M9 12a3 3 0 1 0 6 0 3 3 0 1 0 -6 0',
             ja: 'マウス再同期',
             en: 'Resync Mouse',
-            descJa: 'ホストのカーソル位置とゲスト側マウス位置の基準がズレたときに、押すと作り直せます。',
-            descEn: 'Re-establishes the reference point when the host cursor and the guest mouse position drift apart.',
+            descJa: '「…」→「入力」から、ホストのカーソル位置とゲスト側マウス位置の基準を作り直します。',
+            descEn: 'Under More (…) → Input, re-establishes the reference point when the host cursor and guest mouse position drift apart.',
           },
           {
             icon: 'M3 7h18a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1z M6 10h.01 M9 10h.01 M12 10h.01 M15 10h.01 M18 10h.01 M6 13h.01 M9 13h.01 M12 13h.01 M15 13h.01 M18 13h.01 M8 16h8',
             ja: 'ソフトキーボード',
             en: 'On-screen keyboard',
-            descJa: 'PC-98配列のソフトキーボードを開閉します。SHIFT/CTRL/GRPHは次の1打だけに適用されるワンショット、CAPS/かなはロックトグルです。',
-            descEn: 'Opens/closes the PC-98 layout on-screen keyboard. SHIFT/CTRL/GRPH are one-shot (apply to the next keystroke only), while CAPS/Kana are lock toggles.',
+            descJa: 'テンキーを含むPC-98配列のソフトキーボードを開閉します。表示中は直後に⌨／🎮切替チップが現れます。',
+            descEn: 'Opens/closes the PC-98 layout on-screen keyboard, including the numeric keypad. While a panel is open, a ⌨ / 🎮 switch appears beside it.',
+          },
+          {
+            icon: 'M6 8h12a4 4 0 0 1 4 4.5l-.8 4a2.5 2.5 0 0 1-4.4 1.1L15 15H9l-1.8 2.6a2.5 2.5 0 0 1-4.4-1.1l-.8-4A4 4 0 0 1 6 8z M7 12h3 M8.5 10.5v3 M16 11h.01 M18 13h.01',
+            ja: '入力設定',
+            en: 'Input Settings',
+            descJa: '「…」→「入力」から、ゲームパッド／キーボード／バーチャルパッドの割当プロファイルを編集します。',
+            descEn: 'Under More (…) → Input, edits assignment profiles for Gamepad, Keyboard, and Virtual Pad.',
           },
           {
             icon: 'M4 5h16v11H8l-4 4V5z M7 9h10 M7 12h6',
             ja: 'テキスト送信',
             en: 'Send Text',
             descJa:
-              'ホスト側で入力したテキストをゲストへキーボード入力として送るバーを開きます。Shiftキー2回押しでも開けます。全角対応の詳細は「テキスト送信（日本語入力）」の章を参照してください。',
+              '「…」→「入力」から、ホスト側のテキストをゲストへ送るバーを開きます。Shiftキー2回押しでも開けます。',
             descEn:
-              'Opens a bar for sending text typed on the host to the guest as keyboard input. Can also be opened by pressing Shift twice. See the "Sending text (typing Japanese)" section for full-width character support.',
+              'Under More (…) → Input, opens a bar for sending host text to the guest. It can also be opened by pressing Shift twice.',
           },
           {
             icon: 'M7 7h10v10H7z M9 9h6v6H9z M7 4v3 M12 4v3 M17 4v3 M7 17v3 M12 17v3 M17 17v3 M4 7h3 M4 12h3 M4 17h3 M17 7h3 M17 12h3 M17 17h3',
             ja: 'ROM登録',
             en: 'ROM Files',
             descJa:
-              'デスクトップ版NP2kaiのROM/素材ファイル(bios.rom等)を登録するダイアログを開きます。ブラウザ内保存で次回起動時から自動反映します(要ページ再読み込み)。',
+              '「…」の直結行から、NP2kaiのROM/素材ファイル(bios.rom等)を登録します。次回起動時から自動反映します(要ページ再読み込み)。',
             descEn:
-              'Opens a dialog for registering ROM/asset files (bios.rom, etc.) used by the desktop NP2kai. Saved in your browser and applied automatically on future starts (reload the page).',
+              'From a direct row in More (…), registers NP2kai ROM/asset files (bios.rom, etc.). They are applied automatically on future starts (reload the page).',
           },
           {
             icon: 'M4 16h13l3-3V6a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1z M4 20h13a3 3 0 0 0 3-3 M8 9h6v4H8z',
             ja: 'ディスクライブラリ',
             en: 'Disk Library',
-            descJa: 'これまでに保存されたHDD/FDイメージの一覧を開き、起動・FD挿入・削除ができます。',
-            descEn: 'Opens the list of previously saved HDD/FD images, from which you can boot, insert into an FD drive, or delete them.',
+            descJa: '「…」→「ディスク」から、保存済みHDD/FDイメージの起動・FD挿入・名前変更・削除ができます。',
+            descEn: 'Under More (…) → Disk, opens saved HDD/FD images for booting, FD insertion, renaming, or deletion.',
           },
           {
             icon: 'M3 12a9 9 0 1 0 3-6.7M3 4v5h5 M11 8.5l4 3.5-4 3.5v-7z',
             ja: '初期状態に戻す',
             en: 'Reset to Original',
-            descJa: '保存済みの進行状況を削除し、配布元の初期イメージに戻します(確認ダイアログあり)。',
-            descEn: 'Deletes your saved progress and restores the originally distributed image (with a confirmation dialog).',
+            descJa: '「…」→「ステート」から、保存済みの進行状況を削除して配布元の初期イメージへ戻します。',
+            descEn: 'Under More (…) → State, deletes saved progress and restores the originally distributed image.',
           },
           {
             icon: 'M4 9V5a1 1 0 0 1 1-1h4 M15 4h4a1 1 0 0 1 1 1v4 M20 15v4a1 1 0 0 1-1 1h-4 M9 20H5a1 1 0 0 1-1-1v-4',
@@ -1076,9 +1136,16 @@
             ja: 'ファイル転送',
             en: 'File Transfer',
             descJa:
-              'FTPクライアント風の2ペインダイアログを開き、このブラウザとディスクイメージ(PC-98側)の間でファイルをやり取りします。詳細は「ファイル転送（このブラウザ⇔ディスクイメージ）」の章を参照してください。',
+              '「…」→「ディスク」から2ペインダイアログを開き、このブラウザとディスクイメージの間でファイルをやり取りします。',
             descEn:
-              'Opens an FTP-client-style two-pane dialog for exchanging files between this browser and a disk image (PC-98 side). See the "File transfer (browser ⇔ disk image)" section for details.',
+              'Under More (…) → Disk, opens a two-pane dialog for exchanging files between this browser and a disk image.',
+          },
+          {
+            icon: 'M4 5h16v14H4z M7 9l3 3-3 3 M12 15h5 M17 8h.01',
+            ja: 'デバッガ',
+            en: 'Debugger',
+            descJa: '「…」の直結行からCPUデバッガを開きます。',
+            descEn: 'Opens the CPU debugger from a direct row in More (…).',
           },
           {
             icon: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M9.6 9.2a2.4 2.4 0 1 1 3.3 2.2c-.7.3-.9.8-.9 1.6 M12 16.8h.01',
@@ -1086,6 +1153,13 @@
             en: 'Help',
             descJa: 'このページ(使い方ページ)を別タブで開きます。',
             descEn: 'Opens this Help page in a new tab.',
+          },
+          {
+            icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M3 12h18 M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9 M12 3c-2.5 2.5-3.5 5.5-3.5 9s1 6.5 3.5 9',
+            ja: '言語',
+            en: 'Language',
+            descJa: '「…」の直結行に現在値(日本語／English)を表示し、押すと表示言語を切り替えます。',
+            descEn: 'Shows the current value (English/日本語) in a direct More (…) row; select it to switch the UI language.',
           },
         ];
 

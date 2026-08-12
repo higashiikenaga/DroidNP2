@@ -578,16 +578,16 @@ export function buildPlayerUI(
   const fdBlankBtn1 = iconButton(ICONS.blank, t('fdCreateBlank'));
   const fdDlBtn1 = iconButton(ICONS.download, t('slotDownload'));
   const fdSlot1 = el('div', { class: 'fd-slot' }, [
-    fdLamp1,
-    fdLabel1,
-    fdName1,
-    fdInsertBtn1,
-    fdInput1,
-    fdLibraryBtn1,
-    fdFreeDosBtn1,
-    fdEjectBtn1,
-    fdBlankBtn1,
-    fdDlBtn1,
+    el('div', { class: 'fd-slot-info' }, [fdLamp1, fdLabel1, fdName1]),
+    el('div', { class: 'fd-slot-actions' }, [
+      fdInsertBtn1,
+      fdInput1,
+      fdLibraryBtn1,
+      fdFreeDosBtn1,
+      fdEjectBtn1,
+      fdBlankBtn1,
+      fdDlBtn1,
+    ]),
   ]);
 
   const fdLabel2 = el('span', { class: 'fd-label' }, [t('fdSlotLabel', { drive: 2 })]);
@@ -603,15 +603,15 @@ export function buildPlayerUI(
   const fdBlankBtn2 = iconButton(ICONS.blank, t('fdCreateBlank'));
   const fdDlBtn2 = iconButton(ICONS.download, t('slotDownload'));
   const fdSlot2 = el('div', { class: 'fd-slot' }, [
-    fdLamp2,
-    fdLabel2,
-    fdName2,
-    fdInsertBtn2,
-    fdInput2,
-    fdLibraryBtn2,
-    fdEjectBtn2,
-    fdBlankBtn2,
-    fdDlBtn2,
+    el('div', { class: 'fd-slot-info' }, [fdLamp2, fdLabel2, fdName2]),
+    el('div', { class: 'fd-slot-actions' }, [
+      fdInsertBtn2,
+      fdInput2,
+      fdLibraryBtn2,
+      fdEjectBtn2,
+      fdBlankBtn2,
+      fdDlBtn2,
+    ]),
   ]);
 
   // HDDスロットUI。コアが実行中のHDD挿抜に未対応のため、読み込みボタンは起動前限定。
@@ -634,15 +634,15 @@ export function buildPlayerUI(
   hddEjectBtn.classList.add('hidden');
   const hddDlBtn = iconButton(ICONS.download, t('slotDownload'));
   const hddSlot = el('div', { class: 'fd-slot' }, [
-    hddLamp,
-    hddLabel,
-    hddName,
-    hddInsertBtn,
-    hddInput,
-    hddLibraryBtn,
-    hddBlankBtn,
-    hddEjectBtn,
-    hddDlBtn,
+    el('div', { class: 'fd-slot-info' }, [hddLamp, hddLabel, hddName]),
+    el('div', { class: 'fd-slot-actions' }, [
+      hddInsertBtn,
+      hddInput,
+      hddLibraryBtn,
+      hddBlankBtn,
+      hddEjectBtn,
+      hddDlBtn,
+    ]),
   ]);
 
   const fdSlots = el('div', { class: 'fd-slots' }, [fdSlot1, fdSlot2, hddSlot]);

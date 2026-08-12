@@ -258,6 +258,8 @@ header.app-header .app-tagline {
   padding: 10px 12px;
   background: linear-gradient(var(--footer-bg-top), var(--footer-bg-bottom));
   border-top: 1px solid var(--footer-border);
+  container-name: console-footer;
+  container-type: inline-size;
 }
 
 .console-footer .fd-slots {
@@ -367,6 +369,47 @@ header.app-header .app-tagline {
   gap: 6px;
   flex: 1 1 auto;
   min-width: 220px;
+}
+
+/* ドライブ識別部と操作部を分け、狭幅時もファイル名をボタンに押し潰されないようにする。 */
+.fd-slot-info,
+.fd-slot-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fd-slot-info {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.fd-slot-actions {
+  flex: 0 0 auto;
+}
+
+/* sides配置ではビューポートが横長でもカード自体は200px前後まで狭まる。
+   ビューポート幅ではなくフッター実幅で切り替え、識別部を1段目、全ボタンを2段目以降へ折り返す。 */
+@container console-footer (max-width: 320px) {
+  .fd-slots,
+  .fd-slot {
+    min-width: 0;
+  }
+
+  .fd-slot {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+  }
+
+  .fd-slot-info,
+  .fd-slot-actions {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .fd-slot-actions {
+    flex-wrap: wrap;
+  }
 }
 
 /* ドライブアクセスランプ。実機の赤色LEDに寄せて、消灯時も枠だけ残して位置を保つ。 */

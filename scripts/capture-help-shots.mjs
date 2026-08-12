@@ -116,6 +116,11 @@ async function clearLibrary(page) {
   });
 }
 
+/** 前の言語で撮ったバーチャルパッド表示状態を次の撮影へ持ち越さない。 */
+async function clearVpadSettings(page) {
+  await page.evaluate(() => localStorage.removeItem('webnp2.vpad'));
+}
+
 /**
  * 起動前の「ブランクHDDを作成」ボタンで実際のFAT16イメージを作り、
  * 説明用の名前(GAMES.thd)と日時に付け替えてライブラリへ入れ直す。
@@ -253,9 +258,10 @@ async function modalContaining(page, text) {
 
 async function clickToolbarButton(page, titlePart) {
   await page.evaluate((needle) => {
-    const btn = Array.from(document.querySelectorAll('.toolbar button, .toolbar a')).find((b) =>
-      (b.title ?? '').includes(needle),
-    );
+    // 「…」へ移した実体ボタンも従来のclickハンドラを保持しているため、撮影では同じ実体を押す。
+    const btn = Array.from(document.querySelectorAll(
+      '.toolbar button, .toolbar a, .toolbar-overflow-sources button, .toolbar-overflow-sources a',
+    )).find((b) => (b.title ?? '').includes(needle));
     if (!btn) throw new Error(`toolbar button not found: ${needle}`);
     btn.click();
   }, titlePart);
@@ -281,6 +287,7 @@ async function run() {
       // --- overlay: 起動前オーバーレイ(ライブラリ空 = 「保存済みディスクから起動」なし) ---
       await page.goto(`${BASE_URL}/?lang=${lang}`, { waitUntil: 'networkidle2' });
       await clearLibrary(page);
+      await clearVpadSettings(page);
       await page.reload({ waitUntil: 'networkidle2' });
       await sleep(1200);
       await shoot(page, '.console-card', `overlay${suffix}.png`);
@@ -298,6 +305,19 @@ async function run() {
       const libraryModal = await modalContaining(page, lang === 'ja' ? 'ディスクライブラリ' : 'Disk Library');
       await libraryModal.screenshot({ path: join(OUT_DIR, `library${suffix}.png`) });
       console.log(`  wrote library${suffix}.png`);
+
+      // --- library-menu: FDD1の「ライブラリから挿入」メニュー ---
+      await page.keyboard.press('Escape');
+      await sleep(400);
+      await page.evaluate((needle) => {
+        const btn = Array.from(document.querySelectorAll('.fd-slot button')).find(
+          (b) => (b.title ?? '').includes(needle),
+        );
+        if (!btn) throw new Error(`library slot button not found: ${needle}`);
+        btn.click();
+      }, lang === 'ja' ? 'ライブラリから挿入' : 'Insert from library');
+      await sleep(800);
+      await shoot(page, '.library-menu:not(.hidden)', `library-menu${suffix}.png`);
 
       // --- filemanager: 起動前のHDDイメージを対象にしたファイル転送ダイアログ ---
       await page.keyboard.press('Escape');
@@ -327,6 +347,38 @@ async function run() {
       });
       await sleep(30000);
       await shoot(page, '.console-card', `overview${suffix}.png`);
+
+      // --- paste-bar: 「…」→「入力」へ移動したテキスト送信バー ---
+      await clickToolbarButton(page, lang === 'ja' ? 'テキスト送信' : 'Send Text');
+      await shoot(page, '.paste-bar:not(.hidden)', `paste-bar${suffix}.png`);
+      await page.keyboard.press('Escape');
+      await sleep(400);
+
+      // --- input-settings: 3タブと共通PC-98キーピッカーが見える入力設定ダイアログ ---
+      await clickToolbarButton(page, lang === 'ja' ? '入力設定' : 'Input Settings');
+      const inputModal = await modalContaining(page, lang === 'ja' ? '入力設定' : 'Input Settings');
+      await inputModal.screenshot({ path: join(OUT_DIR, `input-settings${suffix}.png`) });
+      console.log(`  wrote input-settings${suffix}.png`);
+
+      // --- virtual-pad: スマホ縦持ちで画面下(panel)へ自動配置されたパッド ---
+      await page.keyboard.press('Escape');
+      await page.setViewport({ width: 375, height: 812, deviceScaleFactor: 2 });
+      await sleep(800);
+      await clickToolbarButton(page, lang === 'ja' ? 'ソフトキーボード' : 'On-screen keyboard');
+      await page.evaluate(() => {
+        const pad = document.querySelectorAll('.panel-switch-btn')[1];
+        if (!pad) throw new Error('virtual pad switch not found');
+        pad.click();
+      });
+      await sleep(1000);
+      await page.screenshot({ path: join(OUT_DIR, `virtual-pad${suffix}.png`), fullPage: true });
+      console.log(`  wrote virtual-pad${suffix}.png`);
+
+      // --- virtual-pad-landscape: スマホ横持ちで画面左右(sides)へ自動配置されたパッド ---
+      await page.setViewport({ width: 812, height: 375, deviceScaleFactor: 2 });
+      await sleep(1000);
+      await page.screenshot({ path: join(OUT_DIR, `virtual-pad-landscape${suffix}.png`), fullPage: true });
+      console.log(`  wrote virtual-pad-landscape${suffix}.png`);
 
       await clearLibrary(page);
       await page.close();
