@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { KBD_ROWS, KBD_TENKEY_ROW_START } from '../src/ui/kbd-layout.ts';
+import { isTenkeyCode, KBD_ROWS, KBD_TENKEY_ROW_START, labelForKeyCode } from '../src/ui/kbd-layout.ts';
 
 // テンキー各キーの期待コード(出典: NP2kai sdl/kbtrans.c:109-126。推測で書かないこと)。
 const EXPECTED_TENKEY_CODES: Record<string, number> = {
@@ -70,5 +70,28 @@ describe('KBD_ROWS', () => {
     expect(tenkeyRows[1].map((k) => k.code)).toEqual([0x46, 0x47, 0x48, 0x49]); // 4  5  6  +
     expect(tenkeyRows[2].map((k) => k.code)).toEqual([0x4a, 0x4b, 0x4c, 0x4d]); // 1  2  3  =
     expect(tenkeyRows[3].map((k) => k.code)).toEqual([0x4e, 0x4f, 0x50]); // 0  ,  .
+  });
+});
+
+describe('isTenkeyCode(割り当て一覧のテキスト表示でテンキーと通常キーを区別するための判定)', () => {
+  it('0x40〜0x50(テンキーブロックの全キー)はtrue', () => {
+    for (let code = 0x40; code <= 0x50; code++) {
+      expect(isTenkeyCode(code), `0x${code.toString(16)}`).toBe(true);
+    }
+  });
+
+  it('テンキーブロック外(0x3f以下・0x51以上)はfalse', () => {
+    expect(isTenkeyCode(0x3f)).toBe(false);
+    expect(isTenkeyCode(0x51)).toBe(false);
+    expect(isTenkeyCode(0x02)).toBe(false); // 通常キーの'2'
+    expect(isTenkeyCode(0x00)).toBe(false);
+  });
+
+  it('labelForKeyCodeはテンキーと通常キーで同じlabelを返す(ボタン表記は変えない設計の確認)', () => {
+    // テンキーの2(0x4b)と通常キーの2(0x02)は同じ'2'を返す。区別が必要なテキスト表示側は
+    // isTenkeyCode()と組み合わせて表記を分ける(gamepad-ui.tsのtextLabelForKeyCode参照)。
+    expect(labelForKeyCode(0x4b)).toBe('2');
+    expect(labelForKeyCode(0x02)).toBe('2');
+    expect(labelForKeyCode(0x4b)).toBe(labelForKeyCode(0x02));
   });
 });

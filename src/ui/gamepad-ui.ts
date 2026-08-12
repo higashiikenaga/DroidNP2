@@ -30,8 +30,82 @@ import {
   type Source,
   TENKEY_SPACE_PRESET,
 } from '../api/gamepad.ts';
-import { buildKbdRows, labelForKeyCode } from './kbd-layout.ts';
+import { BUILTIN_TENKEY_ARROWS_ID, type HostKeyProfile, type HostKeyStore } from '../api/hostkey.ts';
+import { buildKbdRows, isTenkeyCode, labelForKeyCode } from './kbd-layout.ts';
 import { t } from './strings.ts';
+
+/**
+ * 割り当て一覧(テキスト表示)用のキー表示名。テンキーブロックのキーは通常キーと label が
+ * 衝突する(例: '2' がテンキーの0x4bにも通常キーの0x02にも存在)ため「テンキー2」のように
+ * 明示する。ソフトキーボード/キーピッカーのボタン表記(buildKbdRowsのdef.labelそのまま)や、
+ * ゲームパッドタブの割当一覧・ライブ表示は対象外(テンキーブロックが視覚的に分離された行として
+ * 描画されており、表示スペースの都合もあるため labelForKeyCode の素の値を使い続ける)。
+ * 「キーボード」タブ(ホストキー再割り当て)の割り当て一覧だけがこの関数を使う。
+ */
+export function textLabelForKeyCode(code: number): string {
+  const label = labelForKeyCode(code);
+  return isTenkeyCode(code) ? t('tenkeyKeyLabel', { key: label }) : label;
+}
+
+/**
+ * main.ts側(HostKeyStoreの実体・永続化を持つ側)から渡してもらう、ホストキー再割り当てタブ用の
+ * コールバック群。gamepad-ui.ts はロジックの二重実装をしない(表示と編集操作の仲介に徹する)方針は
+ * GamepadDialogCallbacks と同じ。
+ */
+export interface HostKeyDialogCallbacks {
+  getStore(): HostKeyStore;
+  setEnabled(enabled: boolean): void;
+  setActiveProfile(id: string | null): void;
+  /** 新規プロファイルを作って id を返す。 */
+  createProfile(label: string): string;
+  /** 既存プロファイル(組み込みも可)を複製して id を返す。sourceId が存在しなければ null。 */
+  duplicateProfile(sourceId: string, label: string): string | null;
+  renameProfile(id: string, label: string): void;
+  deleteProfile(id: string): void;
+  setBinding(profileId: string, code: string, pc98Code: number): void;
+  clearBinding(profileId: string, code: string): void;
+}
+
+/**
+ * ホストの物理キー(KeyboardEvent.code)を読みやすい表記へ変換する。網羅はせず、既知のものだけ
+ * 整形し、未知はcodeをそのまま返す(要求仕様どおり)。DOM/UIに依存しない純粋関数なのでテスト対象。
+ */
+const PHYSICAL_KEY_LABELS: Record<string, string> = {
+  ArrowUp: '↑',
+  ArrowDown: '↓',
+  ArrowLeft: '←',
+  ArrowRight: '→',
+  Space: 'Space',
+  Enter: 'Enter',
+  Escape: 'Esc',
+  Tab: 'Tab',
+  Backspace: 'Backspace',
+  ShiftLeft: 'Shift(L)',
+  ShiftRight: 'Shift(R)',
+  ControlLeft: 'Ctrl(L)',
+  ControlRight: 'Ctrl(R)',
+  AltLeft: 'Alt(L)',
+  AltRight: 'Alt(R)',
+  CapsLock: 'CapsLock',
+};
+
+export function physicalKeyLabel(code: string): string {
+  const known = PHYSICAL_KEY_LABELS[code];
+  if (known) return known;
+  const keyMatch = /^Key([A-Z])$/.exec(code);
+  if (keyMatch) return keyMatch[1];
+  const digitMatch = /^Digit([0-9])$/.exec(code);
+  if (digitMatch) return digitMatch[1];
+  const numpadDigitMatch = /^Numpad([0-9])$/.exec(code);
+  if (numpadDigitMatch) return `Num${numpadDigitMatch[1]}`;
+  if (/^F([1-9]|1[0-9])$/.test(code)) return code;
+  return code;
+}
+
+/** そのプロファイルの表示ラベル(組み込みは保存内容でなくstrings.ts経由の翻訳済みラベルを使う)。 */
+export function hostKeyProfileDisplayLabel(profile: HostKeyProfile): string {
+  return profile.builtin ? t('hostkeyBuiltinTenkeyLabel') : profile.label;
+}
 
 /**
  * Gamepad API の standard mapping における物理ボタンの「位置」表記。
@@ -80,6 +154,57 @@ export interface GamepadDialogCallbacks {
   getActiveKeys(pad: Gamepad): Set<number>;
   /** 全バインディングを消してから指定プリセットを積み直す。 */
   resetToPreset(pad: Gamepad, preset: ReadonlyArray<{ source: Source; binding: Binding }>): void;
+}
+
+/** ピッカーの近くに出す案内文として使える文言キー(いずれも引数を取らない)。 */
+export type PickerHintKey =
+  | 'gamepadPickerIdleHint'
+  | 'gamepadDetectWaiting'
+  | 'gamepadPendingPickKey'
+  | 'gamepadRowSelectedHint'
+  | 'hostkeyPickerIdleHint'
+  | 'hostkeyDetectWaiting'
+  | 'hostkeyPendingPickKey';
+
+export interface PickerAvailability {
+  /** true: 押して意味がある(disabled解除・見た目も通常表示)。false: 押しても意味が無いので無効化する。 */
+  active: boolean;
+  /** ピッカーのすぐ上に出す案内文のキー。なぜ今押せる/押せないかを説明する。 */
+  hintKey: PickerHintKey;
+}
+
+/**
+ * タブ1(ゲームパッド)のキーピッカーが「今押して意味があるか」の純粋な判定。
+ * DOM/Gamepad APIを一切参照しない形に切り出すことで、renderEditor()を経由せずテストできる
+ * (このファイル冒頭のDetectState関連の純粋関数と同じ狙い)。
+ *
+ * 有効条件は要求仕様どおり「pendingGeneric(新規検出のキー選択待ち)」または
+ * 「selectedRowKey(割当編集の行を選択中)」のいずれか一方が成立するときのみ。
+ * それ以外(初期状態・パッド未接続・新規検出でパッドのボタンを待っている最中)は無効にし、
+ * 今どの手順にいるかをhintKeyで案内する。
+ */
+export function gamepadPickerAvailability(state: {
+  hasPad: boolean;
+  isPendingGeneric: boolean;
+  hasSelectedRow: boolean;
+  isWaitingGenericPad: boolean;
+}): PickerAvailability {
+  if (!state.hasPad) return { active: false, hintKey: 'gamepadPickerIdleHint' };
+  if (state.isPendingGeneric) return { active: true, hintKey: 'gamepadPendingPickKey' };
+  if (state.hasSelectedRow) return { active: true, hintKey: 'gamepadRowSelectedHint' };
+  if (state.isWaitingGenericPad) return { active: false, hintKey: 'gamepadDetectWaiting' };
+  return { active: false, hintKey: 'gamepadPickerIdleHint' };
+}
+
+/**
+ * タブ2(ホストキー再割り当て)のキーピッカーが「今押して意味があるか」の純粋な判定。
+ * 有効条件は「物理キーを検出済みで、割り当て先のPC-98キーを選ぶ番(isPendingPick)」のときのみ。
+ * 検出待ち中(isDetecting、まだ物理キーを押していない)や初期状態では無効にする。
+ */
+export function hostkeyPickerAvailability(state: { isPendingPick: boolean; isDetecting: boolean }): PickerAvailability {
+  if (state.isPendingPick) return { active: true, hintKey: 'hostkeyPendingPickKey' };
+  if (state.isDetecting) return { active: false, hintKey: 'hostkeyDetectWaiting' };
+  return { active: false, hintKey: 'hostkeyPickerIdleHint' };
 }
 
 export interface GamepadDialog {
@@ -231,26 +356,88 @@ export function resolvePendingGenericPicked(state: DetectFlowState): DetectFlowS
  * main.ts からはボタン1つ分の配線(open()呼び出しとapplyStrings()連携)だけ行えばよい
  * (filemanager.ts の buildFileManagerDialog と同じ流儀)。
  */
-export function buildGamepadDialog(container: HTMLElement, callbacks: GamepadDialogCallbacks): GamepadDialog {
-  const titleEl = el('h2', { class: 'gp-title' }, [t('gamepadDialogTitle')]);
+export function buildGamepadDialog(
+  container: HTMLElement,
+  callbacks: GamepadDialogCallbacks,
+  hostKeyCallbacks: HostKeyDialogCallbacks,
+): GamepadDialog {
+  const titleEl = el('h2', { class: 'gp-title' }, [t('inputSettingsDialogTitle')]);
+  // タブ(ゲームパッド/キーボード)。新しいツールバーボタンは増やさず、既存のゲームパッド設定
+  // ダイアログを「入力設定」へ格上げしてタブで切り替える。
+  const tabGamepadBtn = el('button', { type: 'button', class: 'gp-tab active' }, [t('inputTabGamepad')]);
+  const tabHostkeyBtn = el('button', { type: 'button', class: 'gp-tab' }, [t('inputTabHostkey')]);
+  const tabsRow = el('div', { class: 'gp-tabs' }, [tabGamepadBtn, tabHostkeyBtn]);
+
+  // --- タブ1: ゲームパッド(既存の内容をそのまま移しただけ、挙動は変えない) ---
   const descEl = el('p', { class: 'gp-desc' }, [t('gamepadDialogDescription')]);
   const listTitleEl = el('h3', { class: 'rom-modal-section-title' }, [t('gamepadConnectedTitle')]);
   const liveContainerEl = el('div', { class: 'gp-live-container' });
   const editorTitleEl = el('h3', { class: 'rom-modal-section-title' }, [t('gamepadBindingsTitle')]);
   const editorPadSelectEl = el('div', { class: 'gp-edit-pad-select' });
   const editorEl = el('div', { class: 'gp-editor' });
-  const pickerTitleEl = el('h3', { class: 'rom-modal-section-title gp-picker-title' }, [t('gamepadKeyPickerTitle')]);
-  const pickerPanelEl = el('div', { class: 'gp-picker kbd-panel' });
-  const closeBtn = el('button', { type: 'button', class: 'rom-close-btn' }, [t('gamepadDialogClose')]);
-  const modal = el('div', { class: 'rom-modal gp-modal', role: 'dialog', 'aria-modal': 'true' }, [
-    titleEl,
+  const gamepadPanelEl = el('div', { class: 'gp-tab-panel' }, [
     descEl,
     listTitleEl,
     liveContainerEl,
     editorTitleEl,
     editorPadSelectEl,
     editorEl,
+  ]);
+
+  // --- タブ2: キーボード(ホストキー再割り当て) ---
+  const hkDescEl = el('p', { class: 'gp-desc' }, [t('hostkeyDialogDescription')]);
+  const hkEnableRow = el('div', { class: 'gp-hk-enable-row' });
+  const hkEnableCheckbox = el('input', { type: 'checkbox', id: 'gp-hk-enable' }) as HTMLInputElement;
+  const hkEnableLabel = el('label', { for: 'gp-hk-enable', class: 'gp-hk-enable-label' }, [t('hostkeyEnableLabel')]);
+  hkEnableRow.append(hkEnableCheckbox, hkEnableLabel);
+
+  const hkProfileRow = el('div', { class: 'gp-edit-pad-row' });
+  const hkProfileSelect = el('select', { class: 'gp-edit-pad-input', id: 'gp-hk-profile' });
+  const hkProfileLabel = el('label', { for: 'gp-hk-profile', class: 'gp-hk-profile-label' }, [t('hostkeyProfileLabel')]);
+  hkProfileRow.append(hkProfileLabel, hkProfileSelect);
+
+  const hkNewBtn = el('button', { type: 'button', class: 'gp-preset-btn' }, [t('hostkeyNewProfileBtn')]);
+  const hkDupBtn = el('button', { type: 'button', class: 'gp-preset-btn' }, [t('hostkeyDuplicateProfileBtn')]);
+  const hkRenameBtn = el('button', { type: 'button', class: 'gp-preset-btn' }, [t('hostkeyRenameProfileBtn')]);
+  const hkDeleteBtn = el('button', { type: 'button', class: 'gp-clear-btn' }, [t('hostkeyDeleteProfileBtn')]);
+  const hkProfileActionsRow = el('div', { class: 'gp-preset-row' }, [hkNewBtn, hkDupBtn, hkRenameBtn, hkDeleteBtn]);
+  const hkReadonlyNoteEl = el('div', { class: 'gp-hint hidden' }, [t('hostkeyBuiltinReadonlyNote')]);
+
+  const hkBindTableEl = el('div', { class: 'gp-bind-table' });
+  const hkAddStatusEl = el('span', { class: 'gp-detect-status' });
+  const hkAddBtn = el('button', { type: 'button', class: 'gp-detect-btn', title: t('hostkeyAddBtnTitle') }, [
+    t('hostkeyAddBtn'),
+  ]);
+  const hkAddRow = el('div', { class: 'gp-generic-row' }, [hkAddBtn, hkAddStatusEl]);
+  const hkPendingHintEl = el('div', { class: 'gp-pending-hint hidden' }, [t('hostkeyPendingPickKey')]);
+  const hkCancelPendingBtn = el('button', { type: 'button', class: 'gp-detect-btn hidden' }, [t('hostkeyCancelBtn')]);
+
+  const hostkeyPanelEl = el('div', { class: 'gp-tab-panel hidden' }, [
+    hkDescEl,
+    hkEnableRow,
+    hkProfileRow,
+    hkProfileActionsRow,
+    hkReadonlyNoteEl,
+    hkBindTableEl,
+    hkAddRow,
+    hkPendingHintEl,
+    hkCancelPendingBtn,
+  ]);
+
+  const pickerTitleEl = el('h3', { class: 'rom-modal-section-title gp-picker-title' }, [t('gamepadKeyPickerTitle')]);
+  // ピッカーが押しても意味の無い状態(無効)のとき、その理由と次にすべき操作をピッカーのすぐ上に
+  // 出す案内文。タブ1(ゲームパッド)・タブ2(ホストキー)共用で、setPickerActive() が一元的に
+  // 文言と disabled/見た目をまとめて更新する(更新漏れ防止)。
+  const pickerHintEl = el('div', { class: 'gp-picker-hint' });
+  const pickerPanelEl = el('div', { class: 'gp-picker kbd-panel' });
+  const closeBtn = el('button', { type: 'button', class: 'rom-close-btn' }, [t('gamepadDialogClose')]);
+  const modal = el('div', { class: 'rom-modal gp-modal', role: 'dialog', 'aria-modal': 'true' }, [
+    titleEl,
+    tabsRow,
+    gamepadPanelEl,
+    hostkeyPanelEl,
     pickerTitleEl,
+    pickerHintEl,
     pickerPanelEl,
     el('div', { class: 'rom-modal-footer' }, [closeBtn]),
   ]);
@@ -259,8 +446,22 @@ export function buildGamepadDialog(container: HTMLElement, callbacks: GamepadDia
 
   // PC-98キーボードピッカー(player.tsのソフトキーボードと同じ見た目をkbd-layout.tsの
   // buildKbdRows()で共有する。ただしここではキー送信はせず「選択」するだけ)。
+  // タブ1(ゲームパッド)・タブ2(ホストキー再割り当て)の両方から同じインスタンスを共用する
+  // (重複実装しないという要求仕様どおり)。どちらのモードで使うかは activeTab / hostKeyPendingCode
+  // で判定し、onPickerKeyClicked() が振り分ける。
   const { rows: pickerRows, buttons: pickerButtons } = buildKbdRows();
   pickerRows.forEach((row) => pickerPanelEl.append(row));
+
+  /** ピッカーが今「押して意味があるか」を一元的に反映する。 disabled 属性・見た目(dim)・案内文の
+   * 3点を必ず同時に更新することで、更新漏れ(押せるのに無効に見える/その逆)を防ぐ。
+   * renderEditor()(タブ1)・renderHostKeyTab()(タブ2、かつそちらがアクティブな時のみ)の
+   * どちらか一方から必ず呼ばれる想定(状態が変わりうる操作は全てそのどちらかを経由するため)。 */
+  function setPickerActive({ active, hintKey }: PickerAvailability): void {
+    pickerPanelEl.classList.toggle('gp-picker-inactive', !active);
+    for (const { button } of pickerButtons) button.disabled = !active;
+    pickerHintEl.classList.toggle('gp-picker-hint-active', active);
+    pickerHintEl.textContent = t(hintKey);
+  }
 
   let rafId: number | null = null;
   // 編集対象パッド(ダイアログ内で選んだ Gamepad.id)。接続が切れたら次のtickで再選出する。
@@ -280,6 +481,116 @@ export function buildGamepadDialog(container: HTMLElement, callbacks: GamepadDia
   let genericStatusEl: HTMLElement | null = null;
   let genericAddBtn: HTMLButtonElement | null = null;
   let pendingPickHintEl: HTMLElement | null = null;
+
+  // --- タブ切替・ホストキー再割り当てタブの状態 ---
+  let activeTab: 'gamepad' | 'hostkey' = 'gamepad';
+  // 物理キー検出中に window(capture段)へ張る一時リスナ。SDL2と同じcapture段で先取りするため、
+  // ここで検出したキーはコアへは届かない(main.ts側の実インターセプトとは別物、UI専用)。
+  let hostKeyDetectListener: ((e: KeyboardEvent) => void) | null = null;
+  // 物理キーを検出し終えて、下のPC-98キーボードピッカーで割り当て先を選ぶ番になっている状態。
+  let hostKeyPendingCode: string | null = null;
+
+  function switchTab(tab: 'gamepad' | 'hostkey'): void {
+    if (activeTab === tab) return;
+    activeTab = tab;
+    tabGamepadBtn.classList.toggle('active', tab === 'gamepad');
+    tabHostkeyBtn.classList.toggle('active', tab === 'hostkey');
+    gamepadPanelEl.classList.toggle('hidden', tab !== 'gamepad');
+    hostkeyPanelEl.classList.toggle('hidden', tab !== 'hostkey');
+    cancelHostKeyDetect();
+    if (tab === 'gamepad') renderEditor(connectedPads());
+    else renderHostKeyTab();
+  }
+
+  /** 物理キー検出待ちを開始する(ホストキー再割り当てタブの[追加])。 */
+  function startHostKeyDetect(): void {
+    cancelHostKeyDetect();
+    const handler = (e: KeyboardEvent): void => {
+      e.preventDefault();
+      e.stopPropagation();
+      window.removeEventListener('keydown', handler, true);
+      hostKeyDetectListener = null;
+      hostKeyPendingCode = e.code;
+      renderHostKeyTab();
+    };
+    hostKeyDetectListener = handler;
+    window.addEventListener('keydown', handler, true);
+    renderHostKeyTab();
+  }
+
+  /** 物理キー検出待ち・キー選択待ちを両方中断する([キャンセル]・タブ切替・Esc・ダイアログを閉じる時)。 */
+  function cancelHostKeyDetect(): void {
+    if (hostKeyDetectListener) {
+      window.removeEventListener('keydown', hostKeyDetectListener, true);
+      hostKeyDetectListener = null;
+    }
+    hostKeyPendingCode = null;
+  }
+
+  /** ホストキー再割り当てタブを丸ごと再構築する。 */
+  function renderHostKeyTab(): void {
+    const store = hostKeyCallbacks.getStore();
+    hkEnableCheckbox.checked = store.enabled;
+
+    hkProfileSelect.textContent = '';
+    for (const profile of store.profiles) {
+      hkProfileSelect.append(new Option(hostKeyProfileDisplayLabel(profile), profile.id));
+    }
+    if (store.activeId !== null) hkProfileSelect.value = store.activeId;
+
+    const active = store.activeId !== null ? (store.profiles.find((p) => p.id === store.activeId) ?? null) : null;
+    const isBuiltin = active?.builtin === true;
+    hkDupBtn.disabled = active === null;
+    hkRenameBtn.disabled = active === null || isBuiltin;
+    hkDeleteBtn.disabled = active === null || isBuiltin;
+    hkReadonlyNoteEl.classList.toggle('hidden', !isBuiltin);
+    hkAddBtn.disabled = active === null || isBuiltin || hostKeyPendingCode !== null;
+
+    hkBindTableEl.textContent = '';
+    if (!active || Object.keys(active.bindings).length === 0) {
+      hkBindTableEl.append(el('div', { class: 'gp-hint' }, [t('hostkeyBindingsEmpty')]));
+    } else {
+      const entries = Object.entries(active.bindings).sort(([a], [b]) => a.localeCompare(b));
+      for (const [code, pc98Code] of entries) hkBindTableEl.append(renderHostKeyRow(active, code, pc98Code));
+    }
+
+    const isDetecting = hostKeyDetectListener !== null;
+    hkAddBtn.textContent = isDetecting ? t('hostkeyCancelBtn') : t('hostkeyAddBtn');
+    hkAddBtn.title = isDetecting ? t('hostkeyCancelBtn') : t('hostkeyAddBtnTitle');
+    hkAddStatusEl.textContent = isDetecting ? t('hostkeyDetectWaiting') : '';
+
+    const isPending = hostKeyPendingCode !== null;
+    hkPendingHintEl.classList.toggle('hidden', !isPending);
+    hkCancelPendingBtn.classList.toggle('hidden', !isPending);
+
+    // ピッカーはタブ2かつキー選択待ちの間だけ活性化する(タブ1側の判定はrenderEditor()が行う)。
+    // 物理キー検出待ち(isDetecting)や、どちらも待っていない初期状態でも押しても意味が無いため
+    // 無効のままにし、その理由をピッカー近くに案内する(判定自体はhostkeyPickerAvailability()に集約)。
+    if (activeTab === 'hostkey') {
+      setPickerActive(hostkeyPickerAvailability({ isPendingPick: isPending, isDetecting }));
+    }
+  }
+
+  function renderHostKeyRow(profile: HostKeyProfile, code: string, pc98Code: number): HTMLElement {
+    const row = el('div', { class: 'gp-bind-row' });
+    const mainArea = el('div', { class: 'gp-bind-row-main' }, [
+      el('span', { class: 'gp-bind-source' }, [physicalKeyLabel(code)]),
+      el('span', { class: 'gp-bind-arrow' }, ['→']),
+      el('span', { class: 'gp-bind-key' }, [textLabelForKeyCode(pc98Code)]),
+    ]);
+    row.append(mainArea);
+    if (!profile.builtin) {
+      const clearBtn = el('button', { type: 'button', class: 'gp-clear-btn', title: t('hostkeyClearBtnTitle') }, [
+        t('hostkeyClearBtn'),
+      ]);
+      clearBtn.addEventListener('click', () => {
+        hostKeyCallbacks.clearBinding(profile.id, code);
+        renderHostKeyTab();
+      });
+      row.append(clearBtn);
+    }
+    return row;
+  }
 
   /** navigator.getGamepads() は疎な配列(切断済みindexがnullのまま残る)なので、非nullだけ拾う。 */
   function connectedPads(): Gamepad[] {
@@ -413,9 +724,16 @@ export function buildGamepadDialog(container: HTMLElement, callbacks: GamepadDia
   /** キーボードピッカーの1キー分がクリックされた時。選択中の行があれば再割当、新規検出待ちがあれば追加する。 */
   function onPickerKey(pad: Gamepad, code: number): void {
     if (pendingGeneric && pendingGeneric.padId === pad.id) {
-      callbacks.addBinding(pad, pendingGeneric.source, { kind: 'key', code });
+      // 【バグ修正】pendingGeneric.source は applyFlow() より前に読んでおくこと。
+      // applyFlow() は外側スコープの pendingGeneric 変数自体を(resolvePendingGenericPickedの
+      // 戻り値どおり)null へ書き換えるため、呼んだ「後」に pendingGeneric.source を読むと
+      // nullのプロパティ参照で例外になり、この関数が renderEditor() を呼ぶ前に静かに中断していた。
+      // 結果、割り当て自体(addBinding)は成功して保存されるのに、一覧・ピッカーの見た目だけが
+      // 更新されない(検出済みの案内が残ったまま)という実機バグにつながっていた。
+      const pickedSource = pendingGeneric.source;
+      callbacks.addBinding(pad, pickedSource, { kind: 'key', code });
       applyFlow(resolvePendingGenericPicked({ detect, pendingGeneric }));
-      selectedRowKey = rowKey(pendingGeneric.source);
+      selectedRowKey = rowKey(pickedSource);
       renderEditor(connectedPads());
       return;
     }
@@ -443,11 +761,14 @@ export function buildGamepadDialog(container: HTMLElement, callbacks: GamepadDia
 
     if (pads.length === 0) {
       editorEl.append(el('div', { class: 'gp-hint' }, [t('gamepadNoPads')]));
-      pickerPanelEl.classList.add('gp-picker-inactive');
+      setPickerActive(gamepadPickerAvailability({ hasPad: false, isPendingGeneric: false, hasSelectedRow: false, isWaitingGenericPad: false }));
       return;
     }
     const pad = ensureEditingPad(pads);
-    if (!pad) return;
+    if (!pad) {
+      setPickerActive(gamepadPickerAvailability({ hasPad: false, isPendingGeneric: false, hasSelectedRow: false, isWaitingGenericPad: false }));
+      return;
+    }
 
     // 編集対象パッド選択。
     const padSelectLabel = el('label', { class: 'gp-edit-pad-row' }, [t('gamepadEditingPadLabel')]);
@@ -545,8 +866,16 @@ export function buildGamepadDialog(container: HTMLElement, callbacks: GamepadDia
     }
 
     // キーボードピッカーは「行選択中」または「新規検出のキー選択待ち」の間だけ活性化する。
-    const pickerActive = selectedRowKey !== null || isPending;
-    pickerPanelEl.classList.toggle('gp-picker-inactive', !pickerActive);
+    // それ以外(初期状態・新規検出のパッドボタン待ち中)は押しても意味が無いため無効化し、
+    // 今どの手順にいるかをピッカーの近くに案内する(判定自体はDOM非依存のgamepadPickerAvailability()に集約)。
+    setPickerActive(
+      gamepadPickerAvailability({
+        hasPad: true,
+        isPendingGeneric: isPending,
+        hasSelectedRow: selectedRowKey !== null,
+        isWaitingGenericPad: detect !== null && detect.kind === 'generic',
+      }),
+    );
   }
 
   function renderBindingRow(pad: Gamepad, source: Source, binding: Binding): HTMLElement {
@@ -650,6 +979,7 @@ export function buildGamepadDialog(container: HTMLElement, callbacks: GamepadDia
     backdrop.classList.add('hidden');
     applyFlow(IDLE_DETECT_FLOW_STATE);
     selectedRowKey = null;
+    cancelHostKeyDetect();
     if (rafId !== null) {
       cancelAnimationFrame(rafId);
       rafId = null;
@@ -657,13 +987,79 @@ export function buildGamepadDialog(container: HTMLElement, callbacks: GamepadDia
   }
 
   // キーボードピッカー配線: 送信はせず、選択中の行/新規検出待ちのSourceへコードを割り当てるだけ。
+  // タブ2(ホストキー再割り当て)のキー選択待ち中はそちらへ振り分ける(タブ1と同じピッカーを共用)。
   for (const { def, button } of pickerButtons) {
     button.addEventListener('click', () => {
+      if (activeTab === 'hostkey' && hostKeyPendingCode !== null) {
+        const store = hostKeyCallbacks.getStore();
+        if (store.activeId !== null) hostKeyCallbacks.setBinding(store.activeId, hostKeyPendingCode, def.code);
+        hostKeyPendingCode = null;
+        renderHostKeyTab();
+        return;
+      }
       const pad = connectedPads().find((p) => p.id === editingPadId);
       if (!pad) return;
       onPickerKey(pad, def.code);
     });
   }
+
+  tabGamepadBtn.addEventListener('click', () => switchTab('gamepad'));
+  tabHostkeyBtn.addEventListener('click', () => switchTab('hostkey'));
+
+  hkEnableCheckbox.addEventListener('change', () => {
+    hostKeyCallbacks.setEnabled(hkEnableCheckbox.checked);
+    renderHostKeyTab();
+  });
+  hkProfileSelect.addEventListener('change', () => {
+    cancelHostKeyDetect();
+    hostKeyCallbacks.setActiveProfile(hkProfileSelect.value || null);
+    renderHostKeyTab();
+  });
+  hkNewBtn.addEventListener('click', () => {
+    const label = prompt(t('hostkeyNewProfilePrompt'));
+    if (!label) return;
+    const id = hostKeyCallbacks.createProfile(label);
+    hostKeyCallbacks.setActiveProfile(id);
+    renderHostKeyTab();
+  });
+  hkDupBtn.addEventListener('click', () => {
+    const store = hostKeyCallbacks.getStore();
+    const active = store.activeId !== null ? (store.profiles.find((p) => p.id === store.activeId) ?? null) : null;
+    if (!active) return;
+    const sourceLabelText = hostKeyProfileDisplayLabel(active);
+    const label = prompt(t('hostkeyDuplicateProfilePrompt', { name: sourceLabelText }), `${sourceLabelText} copy`);
+    if (!label) return;
+    const id = hostKeyCallbacks.duplicateProfile(active.id, label);
+    if (id) hostKeyCallbacks.setActiveProfile(id);
+    renderHostKeyTab();
+  });
+  hkRenameBtn.addEventListener('click', () => {
+    const store = hostKeyCallbacks.getStore();
+    const active = store.activeId !== null ? (store.profiles.find((p) => p.id === store.activeId) ?? null) : null;
+    if (!active || active.builtin) return;
+    const label = prompt(t('hostkeyRenameProfilePrompt'), active.label);
+    if (!label) return;
+    hostKeyCallbacks.renameProfile(active.id, label);
+    renderHostKeyTab();
+  });
+  hkDeleteBtn.addEventListener('click', () => {
+    const store = hostKeyCallbacks.getStore();
+    const active = store.activeId !== null ? (store.profiles.find((p) => p.id === store.activeId) ?? null) : null;
+    if (!active || active.builtin) return;
+    if (!confirm(t('hostkeyDeleteProfileConfirm', { name: hostKeyProfileDisplayLabel(active) }))) return;
+    hostKeyCallbacks.deleteProfile(active.id);
+    if (hostKeyCallbacks.getStore().activeId === null) hostKeyCallbacks.setActiveProfile(BUILTIN_TENKEY_ARROWS_ID);
+    renderHostKeyTab();
+  });
+  hkAddBtn.addEventListener('click', () => {
+    if (hostKeyDetectListener !== null) cancelHostKeyDetect();
+    else startHostKeyDetect();
+    renderHostKeyTab();
+  });
+  hkCancelPendingBtn.addEventListener('click', () => {
+    cancelHostKeyDetect();
+    renderHostKeyTab();
+  });
 
   closeBtn.addEventListener('click', () => close());
   backdrop.addEventListener('click', (e) => {
@@ -679,6 +1075,11 @@ export function buildGamepadDialog(container: HTMLElement, callbacks: GamepadDia
       cancelPendingGeneric();
       return;
     }
+    if (hostKeyDetectListener !== null || hostKeyPendingCode !== null) {
+      cancelHostKeyDetect();
+      renderHostKeyTab();
+      return;
+    }
     close();
   });
 
@@ -686,21 +1087,35 @@ export function buildGamepadDialog(container: HTMLElement, callbacks: GamepadDia
     backdrop.classList.remove('hidden');
     lastEditorKey = '__force__'; // 開くたびにパッド選択・編集表を作り直す。
     render();
+    renderHostKeyTab();
     if (rafId === null) rafId = requestAnimationFrame(tick);
   }
 
   return {
     open,
     applyStrings(): void {
-      titleEl.textContent = t('gamepadDialogTitle');
+      titleEl.textContent = t('inputSettingsDialogTitle');
+      tabGamepadBtn.textContent = t('inputTabGamepad');
+      tabHostkeyBtn.textContent = t('inputTabHostkey');
       descEl.textContent = t('gamepadDialogDescription');
       listTitleEl.textContent = t('gamepadConnectedTitle');
       editorTitleEl.textContent = t('gamepadBindingsTitle');
       pickerTitleEl.textContent = t('gamepadKeyPickerTitle');
       closeBtn.textContent = t('gamepadDialogClose');
+      hkDescEl.textContent = t('hostkeyDialogDescription');
+      hkEnableLabel.textContent = t('hostkeyEnableLabel');
+      hkProfileLabel.textContent = t('hostkeyProfileLabel');
+      hkNewBtn.textContent = t('hostkeyNewProfileBtn');
+      hkDupBtn.textContent = t('hostkeyDuplicateProfileBtn');
+      hkRenameBtn.textContent = t('hostkeyRenameProfileBtn');
+      hkDeleteBtn.textContent = t('hostkeyDeleteProfileBtn');
+      hkReadonlyNoteEl.textContent = t('hostkeyBuiltinReadonlyNote');
+      hkPendingHintEl.textContent = t('hostkeyPendingPickKey');
+      hkCancelPendingBtn.textContent = t('hostkeyCancelBtn');
       if (!backdrop.classList.contains('hidden')) {
         lastEditorKey = '__force__';
         render();
+        renderHostKeyTab();
       }
     },
   };

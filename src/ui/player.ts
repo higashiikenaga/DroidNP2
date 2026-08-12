@@ -6,7 +6,20 @@ import type { RomEntry } from '../api/roms.ts';
 import { buildKbdRows } from './kbd-layout.ts';
 import { buildFileManagerDialog, type FileManagerCallbacks } from './filemanager.ts';
 import { buildDebuggerDialog, type DebuggerCallbacks } from './debugger.ts';
-import { buildGamepadDialog, type GamepadDialogCallbacks } from './gamepad-ui.ts';
+import { buildGamepadDialog, type GamepadDialogCallbacks, type HostKeyDialogCallbacks } from './gamepad-ui.ts';
+import {
+  ALWAYS_VISIBLE_ACTIONS,
+  backToOverflowRoot,
+  CLOSED_OVERFLOW_MENU_STATE,
+  isWideOverflowMenu,
+  type OverflowGroupId,
+  OVERFLOW_GROUP_ORDER,
+  OVERFLOW_GROUPS,
+  type OverflowMenuState,
+  selectOverflowGroup,
+  toggleOverflowMenu,
+  type ToolbarActionId,
+} from './overflow-menu.ts';
 
 export type { LibraryEntry, LibraryGroup, LibraryNode } from './types.ts';
 import type { LibraryEntry, LibraryGroup, LibraryNode } from './types.ts';
@@ -134,6 +147,8 @@ export interface PlayerCallbacks {
   debugger: DebuggerCallbacks;
   /** ゲームパッド設定ダイアログが使うコールバック群。詳細はgamepad-ui.ts参照。 */
   gamepad: GamepadDialogCallbacks;
+  /** ホストキー再割り当て(入力設定ダイアログのキーボードタブ)が使うコールバック群。詳細はgamepad-ui.ts参照。 */
+  hostkey: HostKeyDialogCallbacks;
 }
 
 export interface PlayerOptions {
@@ -177,6 +192,8 @@ export interface PlayerUI {
   setPasteFeature(state: { buttonVisible: boolean; fullwidthAvailable: boolean }): void;
   /** マウスキャプチャ状態の通知(onMouseToggle/pointerlockchange双方から呼ぶ)。ダブルクリック開始の可否判定に使う。 */
   setMouseCaptured(captured: boolean): void;
+  /** ホストキー再割り当てが有効かどうかをツールバーの入力設定ボタンにバッジ(小さいドット)で示す。 */
+  setHostKeyBadge(enabled: boolean): void;
 }
 
 const HDD_EXTENSIONS = ['.thd', '.hdi', '.nhd', '.hdd'];
@@ -273,6 +290,8 @@ const ICONS = {
   // パッド本体(丸角枠)＋十字キー＋丸ボタン2つ＝ゲームパッド設定。
   gamepad:
     'M6 8h12a4 4 0 0 1 4 4.5l-.8 4a2.5 2.5 0 0 1-4.4 1.1L15 15H9l-1.8 2.6a2.5 2.5 0 0 1-4.4-1.1l-.8-4A4 4 0 0 1 6 8z M7 12h3 M8.5 10.5v3 M16 11h.01 M18 13h.01',
+  // 横並びの点3つ(…)＝ツールバーの「その他」オーバーフローメニュー。
+  overflow: 'M5 12h.01 M12 12h.01 M19 12h.01',
 };
 
 function iconButton(icon: string, label: string, extraClass = ''): HTMLButtonElement {
@@ -443,30 +462,59 @@ export function buildPlayerUI(
   const btnFileManager = iconButton(ICONS.fileTransfer, t('toolbarFileManager'));
   const btnDebugger = iconButton(ICONS.debugger, t('toolbarDebugger'), 'debugger-open-btn');
   btnDebugger.setAttribute('data-debugger-open', 'true');
-  // ゲームパッド設定。起動前でも接続確認・割当編集ができるよう常に有効(ファイルマネージャ等と同様)。
+  // 入力設定(ゲームパッド+ホストキー再割り当て)。起動前でも接続確認・割当編集ができるよう常に有効
+  // (ファイルマネージャ等と同様)。新しいボタンは増やさず、ホストキー再割り当てが有効中は
+  // このボタンへバッジ(小さいドット)を出すことで状態を示す(setHostKeyBadge参照)。
   const btnGamepad = iconButton(ICONS.gamepad, t('toolbarGamepad'));
+  const hostKeyBadge = el('span', { class: 'icon-btn-badge hidden' });
+  btnGamepad.append(hostKeyBadge);
   // 使い方ページは起動前でも参照できるよう、setToolbarEnabledの無効化対象にはしない。
   // 通常のリンクとして開けるよう<a>要素にする(新規タブオープンをブラウザ標準の挙動に任せる)。
   const btnHelp = iconLinkButton(ICONS.help, t('toolbarHelp'), `help.html?lang=${getLang()}`);
+  // ツールバー「…」オーバーフローメニュー。アイコンが15個に増え見分けが付きにくくなったため、
+  // 使用頻度の低いものは overflow-menu.ts のグループ定義に従いこのボタン配下へ畳む
+  // (移植元: WebX68k commit 694bd3f)。グループ分けとメニュー本体は下の
+  // 「--- ツールバー「…」オーバーフローメニュー ---」ブロックにまとめて実装する。
+  const btnToolbarOverflow = iconButton(ICONS.overflow, t('toolbarMore'));
+  btnToolbarOverflow.setAttribute('aria-haspopup', 'menu');
+
+  // グループ分け対象の操作(常時表示7個+オーバーフロー8個、overflow-menu.tsのALL_TOOLBAR_ACTIONS)を
+  // 実ボタンへ結び付けるテーブル。常時表示側の並び順もここから作るため、DOM構築とグループ定義が
+  // 二重管理にならない。
+  const actionButtons: Record<ToolbarActionId, HTMLButtonElement> = {
+    machineReset: btnMachineReset,
+    saveState: btnSaveState,
+    loadState: btnLoadState,
+    screenshot: btnScreenshot,
+    fullscreen: btnFullscreen,
+    virtualKbd: btnVirtualKbd,
+    gamepad: btnGamepad,
+    mouseCapture: btnMouse,
+    mouseResync: btnMouseResync,
+    resetOriginal: btnReset,
+    pasteText: btnPasteText,
+    romManager: btnRomManager,
+    diskLibrary: btnDiskLibrary,
+    fileManager: btnFileManager,
+    debuggerOpen: btnDebugger,
+  };
+  const overflowActionIds = OVERFLOW_GROUP_ORDER.flatMap((groupId) => OVERFLOW_GROUPS[groupId]);
+
   const toolbar = el('div', { class: 'toolbar' }, [
-    btnMachineReset,
-    btnSaveState,
-    btnLoadState,
-    btnScreenshot,
-    btnMouse,
-    btnMouseResync,
-    btnReset,
-    btnFullscreen,
-    btnVirtualKbd,
-    btnPasteText,
-    btnRomManager,
-    btnDiskLibrary,
-    btnFileManager,
-    btnDebugger,
-    btnGamepad,
+    ...ALWAYS_VISIBLE_ACTIONS.map((id) => actionButtons[id]),
     btnHelp,
     btnLang,
+    btnToolbarOverflow,
   ]);
+  // オーバーフローへ移した操作の実体ボタン(非表示)。クリックハンドラは従来通りそれぞれの
+  // btnXxx.addEventListener(...)へ個別に配線したまま(二重実装を避ける)、表示上だけここへ
+  // 隠す。メニュー側は各ボタンのtitle/disabledを読み、行クリック時はbtn.click()を呼ぶだけ
+  // (overflowActionRow()参照)。
+  const overflowSources = el(
+    'div',
+    { class: 'toolbar-overflow-sources' },
+    overflowActionIds.map((id) => actionButtons[id]),
+  );
 
   // FDスロットUI (FDD1/FDD2)
   // ドライブアクセスランプ。コア側のアクセスカウンタの変化で main.ts から点灯/消灯させる。
@@ -745,7 +793,7 @@ export function buildPlayerUI(
 
   // WebMSX風: カードは実行画面(キャンバス) + グレーのコンソールバー(ツールバー/FDスロット)のみ。
   // 黒いページヘッダー/グレーのページフッターは index.html 側の全幅要素として別に存在する。
-  const footerBar = el('div', { class: 'console-footer' }, [toolbar, fdSlots]);
+  const footerBar = el('div', { class: 'console-footer' }, [toolbar, fdSlots, overflowSources]);
   const card = el('div', { class: 'console-card' });
   card.append(stage, kbdPanel, footerBar);
 
@@ -1122,10 +1170,38 @@ export function buildPlayerUI(
     fdLibraryMenu.textContent = '';
   }
 
-  function menuRow(label: string, extra?: string, cls = ''): HTMLElement {
-    const children: Array<Node | string> = [el('span', { class: 'library-menu-label' }, [label])];
+  /**
+   * @param options.icon 行頭に添えるアイコン(オーバーフローメニューが元のツールバーボタンの
+   *   svgをそのまま流用する想定。内部で複製するので呼び出し側でcloneしなくてよい)。
+   * @param options.iconSlot iconが無い行でも、アイコン1つ分の幅を空けてからラベルを書き出す
+   *   (グループ見出し行・戻る行で、アイコン付き行とラベルの書き出しx座標を揃えるため)。
+   *   icon指定時は無視される。
+   * @param options.disabled trueのとき行を無効表示にし、クリック/キー操作を受け付けなくする
+   *   (起動前で使えないメニュー項目を再現するため。overflowActionRow()参照)。
+   */
+  function menuRow(
+    label: string,
+    extra?: string,
+    cls = '',
+    options?: { icon?: SVGElement | null; iconSlot?: boolean; disabled?: boolean },
+  ): HTMLElement {
+    const children: Array<Node | string> = [];
+    if (options?.icon) {
+      children.push(options.icon.cloneNode(true) as SVGElement);
+    } else if (options?.iconSlot) {
+      children.push(el('span', { class: 'library-menu-icon-placeholder', 'aria-hidden': 'true' }));
+    }
+    children.push(el('span', { class: 'library-menu-label' }, [label]));
     if (extra) children.push(el('span', { class: 'library-menu-extra' }, [extra]));
-    return el('div', { class: `library-menu-item ${cls}`.trim(), role: 'menuitem', tabindex: '0' }, children);
+    const disabled = options?.disabled ?? false;
+    const row = el('div', { class: `library-menu-item ${cls} ${disabled ? 'disabled' : ''}`.trim(), role: 'menuitem' }, children);
+    if (disabled) {
+      row.setAttribute('aria-disabled', 'true');
+      row.tabIndex = -1;
+    } else {
+      row.tabIndex = 0;
+    }
+    return row;
   }
 
   /** メニュー内の1行に、クリック/Enterで同じ動作を割り当てる。 */
@@ -1257,11 +1333,174 @@ export function buildPlayerUI(
   const debuggerDialog = buildDebuggerDialog(debuggerWorkspace, callbacks.debugger, container);
   btnDebugger.addEventListener('click', () => debuggerDialog.open());
 
-  // ゲームパッド設定。詳細なDOM・状態管理はgamepad-ui.tsへ委譲する(filemanager.tsと同じ流儀)。
-  const gamepadDialog = buildGamepadDialog(container, callbacks.gamepad);
+  // 入力設定(ゲームパッド+ホストキー再割り当て)。詳細なDOM・状態管理はgamepad-ui.tsへ委譲する
+  // (filemanager.tsと同じ流儀)。
+  const gamepadDialog = buildGamepadDialog(container, callbacks.gamepad, callbacks.hostkey);
   btnGamepad.addEventListener('click', () => gamepadDialog.open());
 
-  container.append(debuggerWorkspace, progressWrap, statusPanel, romBackdrop, libraryBackdrop, fdLibraryMenu);
+  // --- ツールバー「…」オーバーフローメニュー ---
+  // グループ分け(overflow-menu.tsのOVERFLOW_GROUPS)・開閉状態遷移(同ファイルのOverflowMenuState)は
+  // DOM非依存で切り出し済み。ここではその結果をDOMへ反映するだけに留める。
+  // 階層は「グループ一覧(第1階層)→グループ内の項目(第2階層)」の2段のみ。各行は
+  // actionButtons(元のツールバーボタン。現在はtoolbar-overflow-sourcesで非表示)をそのまま
+  // ミラーする: ラベルはボタンのtitle、状態はdisabledを読み、クリック時はそのボタンの
+  // click()を呼ぶだけでハンドラを二重化しない(WebX68k実装のoverflowActionRow()と同じ方式)。
+  const overflowMenu = el('div', { class: 'library-menu hidden', role: 'menu' });
+  // 広い画面用のカスケードサブメニュー(第2階層)。overflowMenu(親)は開いたまま、
+  // グループ行の右側に別要素として重ねる。狭い画面では使わず、overflowMenuを差し替える。
+  const overflowSubmenu = el('div', { class: 'library-menu hidden', role: 'menu' });
+  overflowMenu.tabIndex = -1;
+  overflowSubmenu.tabIndex = -1;
+
+  const OVERFLOW_GROUP_LABEL: Record<OverflowGroupId, () => string> = {
+    mouse: () => t('toolbarGroupMouse'),
+    tools: () => t('toolbarGroupTools'),
+  };
+
+  let overflowMenuState: OverflowMenuState = CLOSED_OVERFLOW_MENU_STATE;
+
+  function closeOverflowMenu(): void {
+    overflowMenuState = CLOSED_OVERFLOW_MENU_STATE;
+    overflowMenu.classList.add('hidden');
+    overflowMenu.textContent = '';
+    overflowSubmenu.classList.add('hidden');
+    overflowSubmenu.textContent = '';
+  }
+
+  /** 元のツールバーボタン(現在は非表示)を1行に変換する。ラベル/disabledはボタンの現在値をそのまま読む。 */
+  function overflowActionRow(id: ToolbarActionId): HTMLElement {
+    const btn = actionButtons[id];
+    const icon = btn.querySelector<SVGElement>('svg');
+    const row = menuRow(btn.title, undefined, '', { icon, iconSlot: true, disabled: btn.disabled });
+    if (!btn.disabled) {
+      onActivate(row, () => {
+        closeOverflowMenu();
+        btn.click();
+      });
+    }
+    return row;
+  }
+
+  /** ボタン直上にメニューを表示する(ツールバーはカード下端にあるため下方向は画面外に出やすい)。 */
+  function positionOverflowMenu(anchorEl: HTMLElement): void {
+    overflowMenu.style.left = '0px';
+    overflowMenu.style.top = '0px';
+    overflowMenu.classList.remove('hidden');
+    const rect = anchorEl.getBoundingClientRect();
+    const menuRect = overflowMenu.getBoundingClientRect();
+    const left = Math.max(4, Math.min(rect.left, window.innerWidth - menuRect.width - 4));
+    const top = Math.max(4, rect.top - menuRect.height - 4);
+    overflowMenu.style.left = `${Math.round(left)}px`;
+    overflowMenu.style.top = `${Math.round(top)}px`;
+  }
+
+  /**
+   * カスケードサブメニューの位置決め。上端はクリックした行の上端、左端は親メニューの右端に
+   * 接する位置が基本だが、画面右端に収まらない場合は親メニューの左側へ反転し、画面下端に
+   * 収まらない場合は上方向にずらす。
+   */
+  function positionOverflowSubmenu(rowEl: HTMLElement): void {
+    overflowSubmenu.style.left = '0px';
+    overflowSubmenu.style.top = '0px';
+    overflowSubmenu.classList.remove('hidden');
+    const parentRect = overflowMenu.getBoundingClientRect();
+    const rowRect = rowEl.getBoundingClientRect();
+    const subRect = overflowSubmenu.getBoundingClientRect();
+    let left = parentRect.right + 4;
+    if (left + subRect.width > window.innerWidth - 4) left = parentRect.left - subRect.width - 4;
+    left = Math.max(4, Math.min(left, window.innerWidth - subRect.width - 4));
+    let top = rowRect.top;
+    if (top + subRect.height > window.innerHeight - 4) top = window.innerHeight - subRect.height - 4;
+    top = Math.max(4, top);
+    overflowSubmenu.style.left = `${Math.round(left)}px`;
+    overflowSubmenu.style.top = `${Math.round(top)}px`;
+  }
+
+  /** 第2階層(広い画面用、カスケード): 親(overflowMenu)は開いたまま、グループ行の右に重ねて出す。 */
+  function renderOverflowCascade(rowEl: HTMLElement, groupId: OverflowGroupId): void {
+    overflowSubmenu.textContent = '';
+    for (const id of OVERFLOW_GROUPS[groupId]) overflowSubmenu.append(overflowActionRow(id));
+    positionOverflowSubmenu(rowEl);
+    overflowSubmenu.focus({ preventScroll: true });
+  }
+
+  /** 第2階層(狭い画面用): 単一グループの中身。「← 戻る」でrootへ戻る(スロットメニューと同じ流儀)。 */
+  function renderOverflowGroup(groupId: OverflowGroupId): void {
+    overflowMenu.textContent = '';
+    const back = menuRow(t('libraryMenuBack'), undefined, 'back', { iconSlot: true });
+    onActivate(back, () => {
+      overflowMenuState = backToOverflowRoot();
+      renderOverflowRoot();
+    });
+    overflowMenu.append(back, el('div', { class: 'library-menu-title' }, [OVERFLOW_GROUP_LABEL[groupId]()]));
+    for (const id of OVERFLOW_GROUPS[groupId]) overflowMenu.append(overflowActionRow(id));
+    positionOverflowMenu(btnToolbarOverflow);
+    overflowMenu.focus({ preventScroll: true });
+  }
+
+  /** 第1階層: グループ一覧。 */
+  function renderOverflowRoot(): void {
+    overflowMenu.textContent = '';
+    overflowSubmenu.classList.add('hidden');
+    overflowSubmenu.textContent = '';
+    overflowMenu.append(el('div', { class: 'library-menu-title' }, [t('toolbarMore')]));
+    const wide = isWideOverflowMenu(window.innerWidth);
+    for (const groupId of OVERFLOW_GROUP_ORDER) {
+      const row = menuRow(OVERFLOW_GROUP_LABEL[groupId](), undefined, 'group', { iconSlot: true });
+      onActivate(row, () => {
+        overflowMenuState = selectOverflowGroup(groupId, wide);
+        if (wide) renderOverflowCascade(row, groupId);
+        else renderOverflowGroup(groupId);
+      });
+      overflowMenu.append(row);
+    }
+    positionOverflowMenu(btnToolbarOverflow);
+    overflowMenu.focus({ preventScroll: true });
+  }
+
+  btnToolbarOverflow.addEventListener('click', (e) => {
+    e.stopPropagation();
+    overflowMenuState = toggleOverflowMenu(overflowMenuState);
+    if (overflowMenuState.level === 'closed') closeOverflowMenu();
+    else renderOverflowRoot();
+  });
+
+  for (const menuEl of [overflowMenu, overflowSubmenu]) {
+    // メニュー内のクリックはここで止める(fdLibraryMenuと同じ理由: documentまで伝播すると
+    // 「クリック対象が既にメニュー配下に無い」と判定されて閉じてしまう)。
+    menuEl.addEventListener('click', (e) => e.stopPropagation());
+    // ゲスト(SDL)側へキー入力が漏れないよう、メニュー内でのキーイベントはwindow/document側の
+    // SDLリスナーへ伝播させない(貼り付け入力欄=pasteInputと同じbubble段でのstopPropagation。
+    // captureでは奪えない: feedback_sdl2_wasm_steals_keyboard.md参照)。
+    // メニューを開く際にoverflowMenu.focus()しているため、Escはこの要素(またはその子の行)を
+    // 経由してバブルする=documentへ到達する前にここで止まる。
+    for (const eventName of ['keydown', 'keyup', 'keypress'] as const) {
+      menuEl.addEventListener(eventName, (e) => e.stopPropagation());
+    }
+    menuEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeOverflowMenu();
+        btnToolbarOverflow.focus();
+      }
+    });
+  }
+  // メニュー外クリックで閉じる(fdLibraryMenuと同じ流儀)。
+  document.addEventListener('click', () => {
+    if (overflowMenuState.level === 'closed') return;
+    closeOverflowMenu();
+  });
+
+  container.append(
+    debuggerWorkspace,
+    progressWrap,
+    statusPanel,
+    romBackdrop,
+    libraryBackdrop,
+    fdLibraryMenu,
+    overflowMenu,
+    overflowSubmenu,
+  );
 
   startBtn.addEventListener('click', () => callbacks.onStart());
   freeDosBtn?.addEventListener('click', () => callbacks.onStartFreeDos());
@@ -1636,6 +1875,9 @@ export function buildPlayerUI(
     setMouseCaptured(captured: boolean) {
       mouseCaptured = captured;
     },
+    setHostKeyBadge(enabled: boolean) {
+      hostKeyBadge.classList.toggle('hidden', !enabled);
+    },
     setToolbarEnabled(enabled: boolean) {
       toolbarEnabled = enabled;
       btnMachineReset.disabled = !enabled;
@@ -1682,6 +1924,9 @@ export function buildPlayerUI(
       if (enabled) hddEjectBtn.classList.add('hidden');
       // 起動状態が変わるとライブラリ行のアクション(起動 vs 挿入)が変わるため、開いていれば更新する。
       if (!libraryBackdrop.classList.contains('hidden')) void refreshLibraryList();
+      // オーバーフローメニューの各行はdisabled状態をボタンからその場で読むだけなので、
+      // 開いたままにすると起動前後で状態が食い違う。単純に閉じて再度開き直させる。
+      closeOverflowMenu();
     },
     updateSlots(slots: { fd1?: string; fd2?: string; hdd?: string; hddPending?: boolean }) {
       slotMounted = slots;
@@ -1727,6 +1972,9 @@ export function buildPlayerUI(
       btnHelp.setAttribute('aria-label', t('toolbarHelp'));
       btnHelp.href = `help.html?lang=${getLang()}`;
       btnLang.textContent = t('langToggle');
+      btnToolbarOverflow.title = t('toolbarMore');
+      btnToolbarOverflow.setAttribute('aria-label', t('toolbarMore'));
+      closeOverflowMenu();
       fdLabel1.textContent = t('fdSlotLabel', { drive: 1 });
       fdLabel2.textContent = t('fdSlotLabel', { drive: 2 });
       hddLabel.textContent = t('hddSlotLabel');

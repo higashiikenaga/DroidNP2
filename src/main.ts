@@ -39,7 +39,21 @@ import {
   type Source,
 } from './api/gamepad.ts';
 import { SharedKeyInput } from './api/shared-key-input.ts';
-import type { GamepadDialogCallbacks } from './ui/gamepad-ui.ts';
+import type { GamepadDialogCallbacks, HostKeyDialogCallbacks } from './ui/gamepad-ui.ts';
+import {
+  clearBinding as hostKeyClearBinding,
+  createHostKeyHandlers,
+  createProfile as hostKeyCreateProfile,
+  deleteProfile as hostKeyDeleteProfile,
+  duplicateProfile as hostKeyDuplicateProfile,
+  type HostKeyStore,
+  loadHostKeyStore,
+  renameProfile as hostKeyRenameProfile,
+  saveHostKeyStore,
+  setActiveProfile as hostKeySetActiveProfile,
+  setBinding as hostKeySetBinding,
+  setEnabled as hostKeySetEnabled,
+} from './api/hostkey.ts';
 
 interface PendingImage {
   slot: DiskSlot;
@@ -1495,6 +1509,98 @@ const gamepadDialogCallbacks: GamepadDialogCallbacks = {
   },
 };
 
+// --- ホストキー再割り当て(「ホストの物理キー → 任意のPC-98キー」) ---
+//
+// emscripten SDL2 は document レベルで keydown/keyup を直接 preventDefault() してゲストへ渡すため、
+// window の capture 段(document より先に見える)で先取りする必要がある(api/hostkey.ts 冒頭参照)。
+// 割当の無いキーは preventDefault/stopPropagation のどちらも呼ばない(素通し)。
+let hostKeyStore: HostKeyStore = loadHostKeyStore();
+
+function persistHostKeyStore(next: HostKeyStore): void {
+  hostKeyStore = next;
+  saveHostKeyStore(hostKeyStore);
+  ui.setHostKeyBadge(hostKeyStore.enabled);
+}
+
+// ソフトキーボード・ゲームパッドと同じ SharedKeyInput を共有する(sharedKeyInputは上で定義済み)。
+// 同じPC-98キーを複数ソースが同時に押していても、片方のreleaseだけではbreakを送らない。
+const hostKeyHandlers = createHostKeyHandlers(() => hostKeyStore, sharedKeyInput);
+
+let hostKeyListenersAttached = false;
+
+function attachHostKeyListeners(): void {
+  if (hostKeyListenersAttached) return;
+  window.addEventListener('keydown', hostKeyHandlers.onKeyDown as unknown as EventListener, true);
+  window.addEventListener('keyup', hostKeyHandlers.onKeyUp as unknown as EventListener, true);
+  hostKeyListenersAttached = true;
+}
+
+function detachHostKeyListeners(): void {
+  if (!hostKeyListenersAttached) return;
+  window.removeEventListener('keydown', hostKeyHandlers.onKeyDown as unknown as EventListener, true);
+  window.removeEventListener('keyup', hostKeyHandlers.onKeyUp as unknown as EventListener, true);
+  hostKeyListenersAttached = false;
+  hostKeyHandlers.releaseAll();
+}
+
+/** enabled===trueの間だけcapture段のリスナを張る(無効時は何も挟まっていない状態にする)。 */
+function syncHostKeyListeners(): void {
+  if (hostKeyStore.enabled) attachHostKeyListeners();
+  else detachHostKeyListeners();
+}
+
+// タブ切替・ウィンドウ非アクティブ化で押しっぱなしを残さない。
+window.addEventListener('blur', () => hostKeyHandlers.releaseAll());
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) hostKeyHandlers.releaseAll();
+});
+
+function activeHostKeyProfile(store: HostKeyStore): { id: string; builtin?: boolean } | null {
+  if (store.activeId === null) return null;
+  return store.profiles.find((p) => p.id === store.activeId) ?? null;
+}
+
+const hostKeyDialogCallbacks: HostKeyDialogCallbacks = {
+  getStore: () => hostKeyStore,
+  setEnabled: (enabled) => {
+    persistHostKeyStore(hostKeySetEnabled(hostKeyStore, enabled));
+    if (!enabled) hostKeyHandlers.releaseAll();
+    syncHostKeyListeners();
+  },
+  setActiveProfile: (id) => {
+    // プロファイル切替: 直前のプロファイルで押しっぱなしのキーを残さない。
+    hostKeyHandlers.releaseAll();
+    persistHostKeyStore(hostKeySetActiveProfile(hostKeyStore, id));
+  },
+  createProfile: (label) => {
+    const { store, id } = hostKeyCreateProfile(hostKeyStore, label);
+    persistHostKeyStore(store);
+    return id;
+  },
+  duplicateProfile: (sourceId, label) => {
+    const result = hostKeyDuplicateProfile(hostKeyStore, sourceId, label);
+    if (!result) return null;
+    persistHostKeyStore(result.store);
+    return result.id;
+  },
+  renameProfile: (id, label) => {
+    persistHostKeyStore(hostKeyRenameProfile(hostKeyStore, id, label));
+  },
+  deleteProfile: (id) => {
+    if (activeHostKeyProfile(hostKeyStore)?.id === id) hostKeyHandlers.releaseAll();
+    persistHostKeyStore(hostKeyDeleteProfile(hostKeyStore, id));
+  },
+  setBinding: (profileId, code, pc98Code) => {
+    // 割当編集: 変更前の割当で押しっぱなしのキーを残さない。
+    hostKeyHandlers.releaseAll();
+    persistHostKeyStore(hostKeySetBinding(hostKeyStore, profileId, code, pc98Code));
+  },
+  clearBinding: (profileId, code) => {
+    hostKeyHandlers.releaseAll();
+    persistHostKeyStore(hostKeyClearBinding(hostKeyStore, profileId, code));
+  },
+};
+
 async function handlePasteText(text: string): Promise<void> {
   try {
     const { skipped } = await np2.pasteText(text);
@@ -1638,9 +1744,14 @@ function init(): void {
         readMemory: (addr, len) => debuggerController.readMemory(addr, len),
       },
       gamepad: gamepadDialogCallbacks,
+      hostkey: hostKeyDialogCallbacks,
     },
     { offerFreeDosChoice: !diskSpecified, trackingEnabled: params.get('mousetrack') !== '0' },
   );
+  // 起動直後にも保存済みのホストキー再割り当て設定(enabled/バッジ)を反映する
+  // (persistHostKeyStoreは変更操作からしか呼ばれないため、ロードしただけの初期状態はここで揃える)。
+  ui.setHostKeyBadge(hostKeyStore.enabled);
+  syncHostKeyListeners();
   if (perfParam) {
     void import('./ui/perf.ts').then(({ startPerfOverlay }) => {
       const stage = ui.canvas.parentElement;

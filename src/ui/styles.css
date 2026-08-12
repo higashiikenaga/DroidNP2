@@ -309,6 +309,12 @@ header.app-header .app-tagline {
   font-size: 12px;
 }
 
+/* オーバーフローメニューへ移した操作の実体ボタン。表示上だけ隠し、クリックハンドラの配線・
+   disabled状態はそのまま生きている(overflowActionRow()がbtn.click()/btn.disabledを読む)。 */
+.toolbar-overflow-sources {
+  display: none;
+}
+
 /* トグル系ツールバーボタン(マウス追従等)のON状態を色で明示する。 */
 .toolbar button.icon-btn.active {
   background: var(--accent-dim);
@@ -956,6 +962,13 @@ footer.app-footer a {
 
 .library-menu.hidden { display: none; }
 
+/* overflowMenu/overflowSubmenuはEscをbubble段で確実に捕まえるため開くたびにfocus()する
+   (src/ui/player.tsの「ツールバー「…」オーバーフローメニュー」ブロック参照)。
+   コンテナ自体はフォーカスリングを出す見た目のものが無いので消しておく。 */
+.library-menu:focus {
+  outline: none;
+}
+
 .library-menu-title {
   padding: 4px 8px;
   font-size: 11px;
@@ -972,6 +985,29 @@ footer.app-footer a {
   font-size: 12px;
   border-radius: 4px;
   cursor: pointer;
+}
+
+/* オーバーフローメニュー行(元のツールバーボタンのsvgを流用)。縮まないよう固定する。 */
+.library-menu-item svg {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+}
+
+/* アイコン無し行(グループ見出し・戻る等)でもラベルの書き出しx座標をアイコン付き行に揃えるための
+   空プレースホルダ(menuRow()のoptions.iconSlot)。.library-menu-item svgと同じ幅を確保するだけ。 */
+.library-menu-icon-placeholder {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+/* オーバーフローメニュー行(overflowActionRow())が起動前などで使えないボタンをミラーする際の
+   無効表示。押しても何も起きないよう pointer-events も切る。 */
+.library-menu-item.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .library-menu-item:hover,
@@ -1626,6 +1662,100 @@ footer.app-footer a {
 .gp-picker.gp-picker-inactive {
   opacity: 0.45;
   pointer-events: none;
+}
+
+/* ピッカーのすぐ上に出す状態案内(setPickerActive()が一元管理)。無効時は控えめな色、
+   有効時(行選択中/キー選択待ち)はaccent色で「今押せる」ことを目立たせる。 */
+.gp-picker-hint {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: 2px 0 4px;
+}
+
+.gp-picker-hint.gp-picker-hint-active {
+  color: var(--accent-dim);
+  font-weight: bold;
+}
+
+/* 入力設定ダイアログのタブ(ゲームパッド/キーボード)。ゲームパッド設定ダイアログを
+   「入力設定」へ格上げしたための追加。新しいツールバーボタンは増やさず、既存のダイアログを
+   タブで切り替える。 */
+.gp-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.gp-tab {
+  padding: 6px 12px;
+  font-size: 12px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.gp-tab:hover {
+  color: var(--text);
+}
+
+.gp-tab.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+  font-weight: bold;
+}
+
+.gp-tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gp-tab-panel.hidden {
+  display: none;
+}
+
+/* ホストキー再割り当てタブ。 */
+.gp-hk-enable-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.gp-hk-profile-label {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.gp-hint.hidden,
+.gp-pending-hint.hidden,
+.gp-detect-btn.hidden {
+  display: none;
+}
+
+/* ツールバーの入力設定ボタンに出すバッジ(ホストキー再割り当てがON中であることを示す小さいドット)。
+   既存の .toolbar button.icon-btn.active(トグル系ボタンのON表現)とは別に、常時押されている
+   ボタンではなく「機能がONであること」を示すため独立した小さいマーカーにする。 */
+.icon-btn {
+  position: relative;
+}
+
+.icon-btn-badge {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--footer-btn-bg);
+}
+
+.icon-btn-badge.hidden {
+  display: none;
 }
 
 /* ?perf=1 の性能計測オーバーレイ(デバッグ用) */

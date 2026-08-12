@@ -15,6 +15,12 @@ interface Dict {
   footerAboutLabel(): string;
   /** ツールバーの「使い方」ボタン。help.htmlを別タブで開く。 */
   toolbarHelp(): string;
+  /** ツールバーの「…」オーバーフローボタンのツールチップ/メニュー見出し。 */
+  toolbarMore(): string;
+  /** オーバーフローメニュー内のグループ見出し(マウス関連3つ)。 */
+  toolbarGroupMouse(): string;
+  /** オーバーフローメニュー内のグループ見出し(テキスト送信/ROM/ディスク関連5つ)。 */
+  toolbarGroupTools(): string;
   overlayNote1(): string;
   overlayNote2(): string;
   startBtn(): string;
@@ -278,6 +284,8 @@ interface Dict {
   gamepadPendingPickKey(): string;
   /** 行を選択中、下のキーボードでキーを押すと割り当たることを案内する文言。 */
   gamepadRowSelectedHint(): string;
+  /** キーピッカーが無効(押しても意味が無い)状態のときにピッカーの近くへ出す案内。行未選択・検出未開始の初期状態用。 */
+  gamepadPickerIdleHint(): string;
   gamepadDeadzoneLabel(): string;
   gamepadKeyPickerTitle(): string;
   /** プリセット適用: カーソルキー+z/x。 */
@@ -312,6 +320,44 @@ interface Dict {
   gamepadPosDpadRight(): string;
   gamepadPosHome(): string;
 
+  // --- 入力設定ダイアログのタブ切替(ゲームパッド/ホストキー再割り当て) ---
+  /** ダイアログ見出し・ツールバーボタンとも、ゲームパッド設定からホストキー再割り当てを含む「入力設定」へ格上げ。 */
+  inputSettingsDialogTitle(): string;
+  inputTabGamepad(): string;
+  inputTabHostkey(): string;
+
+  // --- ホストキー再割り当て ---
+  hostkeyDialogDescription(): string;
+  /** ON/OFFスイッチのラベル。 */
+  hostkeyEnableLabel(): string;
+  /** 組み込みプロファイル「テンキー移動」の表示名。localStorageには入れず表示時にここから引く。 */
+  hostkeyBuiltinTenkeyLabel(): string;
+  hostkeyProfileLabel(): string;
+  hostkeyNewProfileBtn(): string;
+  hostkeyNewProfilePrompt(): string;
+  hostkeyDuplicateProfileBtn(): string;
+  hostkeyDuplicateProfilePrompt(args: { name: string }): string;
+  hostkeyRenameProfileBtn(): string;
+  hostkeyRenameProfilePrompt(): string;
+  hostkeyDeleteProfileBtn(): string;
+  hostkeyDeleteProfileConfirm(args: { name: string }): string;
+  /** 組み込みプロファイルは読み取り専用であることの案内(編集・削除ボタンの近くに出す)。 */
+  hostkeyBuiltinReadonlyNote(): string;
+  hostkeyBindingsEmpty(): string;
+  hostkeyAddBtn(): string;
+  hostkeyAddBtnTitle(): string;
+  /** 物理キーの入力待ち中の案内。 */
+  hostkeyDetectWaiting(): string;
+  /** 物理キーを検出したので、下のキーボードで割り当て先を選ぶ番になったときの案内。 */
+  hostkeyPendingPickKey(): string;
+  /** キーピッカーが無効(押しても意味が無い)状態のときにピッカーの近くへ出す案内。検出未開始の初期状態用。 */
+  hostkeyPickerIdleHint(): string;
+  hostkeyClearBtn(): string;
+  hostkeyClearBtnTitle(): string;
+  hostkeyCancelBtn(): string;
+  /** 割り当て一覧などのテキスト表示で、割り当て先がテンキーブロックのキーであることを明示する表記。通常キーの'2'等と区別するため。ソフトキーボード/キーピッカーのボタン表記には使わない(視覚的に分離済みのため)。 */
+  tenkeyKeyLabel(args: { key: string }): string;
+
   // --- ディスク操作エラー(api/fat.ts の DiskError コードに対応) ---
   errD88NotEditable(): string;
   errHddInvalidHeader(args: { format: string }): string;
@@ -329,6 +375,9 @@ const STRINGS: Record<Lang, Dict> = {
     footerGithubLabel: () => 'GitHubで見る',
     footerAboutLabel: () => 'WebNP2について',
     toolbarHelp: () => '使い方',
+    toolbarMore: () => 'その他',
+    toolbarGroupMouse: () => 'マウス',
+    toolbarGroupTools: () => 'ツール',
     overlayNote1: () => '音声再生の制限上、クリック操作で起動します。',
     overlayNote2: () => 'ファイルをドラッグ&ドロップしてHDD/FDイメージを読み込むこともできます。',
     startBtn: () => 'クリックして起動',
@@ -520,7 +569,7 @@ const STRINGS: Record<Lang, Dict> = {
     fmDeleteConfirm: ({ names }) => `以下のファイルを削除します: ${names}\nよろしいですか？`,
     fmCloseBtn: () => '閉じる',
     fmListLoadFailed: ({ message }) => `一覧の取得に失敗しました: ${message}`,
-    toolbarGamepad: () => 'ゲームパッド設定',
+    toolbarGamepad: () => '入力設定(ゲームパッド/キーボード)',
     gamepadDialogTitle: () => 'ゲームパッド設定',
     gamepadDialogDescription: () =>
       '接続中の各パッドについて、ボタン/軸をPC-98のキーへ割り当てます。設定はブラウザにパッドごと保存されます。',
@@ -545,6 +594,7 @@ const STRINGS: Record<Lang, Dict> = {
     gamepadDetectWaiting: () => '入力を待っています…(Escでキャンセル)',
     gamepadPendingPickKey: () => '検出しました。下のキーボードで割り当てるキーを選んでください。',
     gamepadRowSelectedHint: () => '行を選択中: 下のキーボードでキーを押すと、この行に割り当てます。',
+    gamepadPickerIdleHint: () => '割り当てる行を選ぶか、[新規検出]を押してパッドのボタンを押してください。',
     gamepadDeadzoneLabel: () => 'デッドゾーン',
     gamepadKeyPickerTitle: () => 'PC-98キーボード(クリックで選択、送信はされません)',
     gamepadPresetCursorZxBtn: () => 'カーソルキー+Z/X',
@@ -574,6 +624,33 @@ const STRINGS: Record<Lang, Dict> = {
     gamepadPosDpadLeft: () => '十字左',
     gamepadPosDpadRight: () => '十字右',
     gamepadPosHome: () => 'Home',
+    inputSettingsDialogTitle: () => '入力設定',
+    inputTabGamepad: () => 'ゲームパッド',
+    inputTabHostkey: () => 'キーボード',
+    hostkeyDialogDescription: () =>
+      'ホストPC(実機)のキーをPC-98の任意のキーへ再割り当てします。テンキーの無いノートPC等で、テンキー専用の操作をカーソルキー等から行えるようにするための機能です。',
+    hostkeyEnableLabel: () => 'キー再割り当てを有効化',
+    hostkeyBuiltinTenkeyLabel: () => 'テンキー移動(矢印キー→テンキー)',
+    hostkeyProfileLabel: () => 'プロファイル',
+    hostkeyNewProfileBtn: () => '新規',
+    hostkeyNewProfilePrompt: () => '新しいプロファイル名を入力してください:',
+    hostkeyDuplicateProfileBtn: () => '複製',
+    hostkeyDuplicateProfilePrompt: ({ name }) => `「${name}」を複製します。複製後のプロファイル名を入力してください:`,
+    hostkeyRenameProfileBtn: () => 'リネーム',
+    hostkeyRenameProfilePrompt: () => '新しいプロファイル名を入力してください:',
+    hostkeyDeleteProfileBtn: () => '削除',
+    hostkeyDeleteProfileConfirm: ({ name }) => `プロファイル「${name}」を削除します。よろしいですか？`,
+    hostkeyBuiltinReadonlyNote: () => '組み込みプロファイルは編集・削除できません(複製してから編集してください)。',
+    hostkeyBindingsEmpty: () => '割当はまだありません。下の[追加]から割り当ててください。',
+    hostkeyAddBtn: () => '追加',
+    hostkeyAddBtnTitle: () => '次に押したホストの物理キーを新しい行として追加します',
+    hostkeyDetectWaiting: () => 'ホストのキーを押してください…(Escでキャンセル)',
+    hostkeyPendingPickKey: () => '検出しました。下のキーボードで割り当てるPC-98キーを選んでください。',
+    hostkeyPickerIdleHint: () => '[追加]を押してホストのキーを押してください。',
+    hostkeyClearBtn: () => 'クリア',
+    hostkeyClearBtnTitle: () => 'この行の割当を解除します',
+    hostkeyCancelBtn: () => 'キャンセル',
+    tenkeyKeyLabel: ({ key }) => `テンキー${key}`,
     errD88NotEditable: () => 'D88形式は編集に対応していません。',
     errHddInvalidHeader: ({ format }) => `${format}のヘッダが不正です。`,
     errHddNoFatPartition: () => 'HDDイメージ内にFAT16/12パーティションが見つかりません。',
@@ -589,6 +666,9 @@ const STRINGS: Record<Lang, Dict> = {
     footerGithubLabel: () => 'View on GitHub',
     footerAboutLabel: () => 'About WebNP2',
     toolbarHelp: () => 'Help',
+    toolbarMore: () => 'More',
+    toolbarGroupMouse: () => 'Mouse',
+    toolbarGroupTools: () => 'Tools',
     overlayNote1: () => 'Audio requires a user gesture, so click to start.',
     overlayNote2: () => 'You can also drag & drop HDD/FD disk images.',
     startBtn: () => 'Click to Start',
@@ -782,7 +862,7 @@ const STRINGS: Record<Lang, Dict> = {
     fmDeleteConfirm: ({ names }) => `This will delete the following file(s): ${names}\nContinue?`,
     fmCloseBtn: () => 'Close',
     fmListLoadFailed: ({ message }) => `Failed to load listing: ${message}`,
-    toolbarGamepad: () => 'Gamepad Settings',
+    toolbarGamepad: () => 'Input Settings (Gamepad/Keyboard)',
     gamepadDialogTitle: () => 'Gamepad Settings',
     gamepadDialogDescription: () =>
       'Assign buttons/axes on each connected gamepad to PC-98 keys. Settings are saved in your browser, per pad.',
@@ -807,6 +887,7 @@ const STRINGS: Record<Lang, Dict> = {
     gamepadDetectWaiting: () => 'Waiting for input… (Esc to cancel)',
     gamepadPendingPickKey: () => 'Detected. Pick the key to assign on the keyboard below.',
     gamepadRowSelectedHint: () => 'Row selected: press a key on the keyboard below to assign it to this row.',
+    gamepadPickerIdleHint: () => 'Select a row to assign, or press [Detect New] and then press a button on the pad.',
     gamepadDeadzoneLabel: () => 'Deadzone',
     gamepadKeyPickerTitle: () => 'PC-98 keyboard (click to select, no keys are sent)',
     gamepadPresetCursorZxBtn: () => 'Cursor Keys + Z/X',
@@ -836,6 +917,33 @@ const STRINGS: Record<Lang, Dict> = {
     gamepadPosDpadLeft: () => 'D-Pad Left',
     gamepadPosDpadRight: () => 'D-Pad Right',
     gamepadPosHome: () => 'Home',
+    inputSettingsDialogTitle: () => 'Input Settings',
+    inputTabGamepad: () => 'Gamepad',
+    inputTabHostkey: () => 'Keyboard',
+    hostkeyDialogDescription: () =>
+      'Remap physical keys on your host PC to any PC-98 key. Useful on laptops without a numeric keypad, so tenkey-only controls can be driven from e.g. the arrow keys.',
+    hostkeyEnableLabel: () => 'Enable key remapping',
+    hostkeyBuiltinTenkeyLabel: () => 'Tenkey Movement (Arrows → Tenkey)',
+    hostkeyProfileLabel: () => 'Profile',
+    hostkeyNewProfileBtn: () => 'New',
+    hostkeyNewProfilePrompt: () => 'Enter a name for the new profile:',
+    hostkeyDuplicateProfileBtn: () => 'Duplicate',
+    hostkeyDuplicateProfilePrompt: ({ name }) => `Duplicating "${name}". Enter a name for the copy:`,
+    hostkeyRenameProfileBtn: () => 'Rename',
+    hostkeyRenameProfilePrompt: () => 'Enter a new name for the profile:',
+    hostkeyDeleteProfileBtn: () => 'Delete',
+    hostkeyDeleteProfileConfirm: ({ name }) => `Delete profile "${name}"? This cannot be undone.`,
+    hostkeyBuiltinReadonlyNote: () => 'Built-in profiles cannot be edited or deleted (duplicate it first).',
+    hostkeyBindingsEmpty: () => 'No bindings yet. Use [Add] below to add one.',
+    hostkeyAddBtn: () => 'Add',
+    hostkeyAddBtnTitle: () => 'Adds a new row for the next physical key you press on the host',
+    hostkeyDetectWaiting: () => 'Press a key on the host…(Esc to cancel)',
+    hostkeyPendingPickKey: () => 'Detected. Now pick the PC-98 key to assign it to, below.',
+    hostkeyPickerIdleHint: () => 'Press [Add], then press a key on the host keyboard.',
+    hostkeyClearBtn: () => 'Clear',
+    hostkeyClearBtnTitle: () => 'Clears the binding for this row',
+    hostkeyCancelBtn: () => 'Cancel',
+    tenkeyKeyLabel: ({ key }) => `Tenkey ${key}`,
     errD88NotEditable: () => 'The D88 format is not supported for editing.',
     errHddInvalidHeader: ({ format }) => `Invalid ${format} header.`,
     errHddNoFatPartition: () => 'No FAT16/12 partition was found in this HDD image.',

@@ -195,3 +195,14 @@ export function labelForKeyCode(code: number): string {
   }
   return `0x${code.toString(16).padStart(2, '0')}`;
 }
+
+/**
+ * code がテンキーブロック(スキャンコード0x40〜0x50、KBD_ROWSのindex KBD_TENKEY_ROW_START以降)かどうか。
+ * テンキーの '2' 等は通常キーボード側の同じラベルの数字キーと label が衝突するため、
+ * 割り当て一覧のようなテキスト表示側で「テンキー2」のように表記を分けたい呼び出し元が使う
+ * (strings.ts の tenkeyKeyLabel と組み合わせる想定)。ソフトキーボード/キーピッカーのボタン表記は
+ * テンキーブロックが行として視覚的に分離されているため対象外(def.label をそのまま使う)。
+ */
+export function isTenkeyCode(code: number): boolean {
+  return code >= 0x40 && code <= 0x50;
+}

@@ -17,6 +17,9 @@ let cancelDetectFlow: (typeof import('../src/ui/gamepad-ui.ts'))['cancelDetectFl
 let cancelPendingGenericFlow: (typeof import('../src/ui/gamepad-ui.ts'))['cancelPendingGenericFlow'];
 let resolvePendingGenericPicked: (typeof import('../src/ui/gamepad-ui.ts'))['resolvePendingGenericPicked'];
 let freshPadFor: (typeof import('../src/ui/gamepad-ui.ts'))['freshPadFor'];
+let textLabelForKeyCode: (typeof import('../src/ui/gamepad-ui.ts'))['textLabelForKeyCode'];
+let gamepadPickerAvailability: (typeof import('../src/ui/gamepad-ui.ts'))['gamepadPickerAvailability'];
+let hostkeyPickerAvailability: (typeof import('../src/ui/gamepad-ui.ts'))['hostkeyPickerAvailability'];
 
 beforeAll(async () => {
   if (typeof (globalThis as { location?: unknown }).location === 'undefined') {
@@ -34,6 +37,9 @@ beforeAll(async () => {
     cancelPendingGenericFlow,
     resolvePendingGenericPicked,
     freshPadFor,
+    textLabelForKeyCode,
+    gamepadPickerAvailability,
+    hostkeyPickerAvailability,
   } = await import('../src/ui/gamepad-ui.ts'));
   // 実行環境のnavigator.languageに依存せず文言を固定するため、明示的に日本語へ設定する。
   const { setLang } = await import('../src/ui/strings.ts');
@@ -90,6 +96,47 @@ describe('formatAxisValue(丸めて0になる負値は"-0.00"ではなく"0.00"�
   it('ちょうど0とプラス値はそのまま', () => {
     expect(formatAxisValue(0)).toBe('0.00');
     expect(formatAxisValue(3.28571)).toBe('3.29');
+  });
+});
+
+describe('textLabelForKeyCode(割り当て一覧のテキスト表示。テンキーは通常キーと同じlabelなので区別を付ける)', () => {
+  it('テンキーの各キー(0x40〜0x50)は「テンキーN」のように接頭辞付きで表示される', () => {
+    const expected: Record<number, string> = {
+      0x40: 'テンキー-',
+      0x41: 'テンキー/',
+      0x42: 'テンキー7',
+      0x43: 'テンキー8',
+      0x44: 'テンキー9',
+      0x45: 'テンキー*',
+      0x46: 'テンキー4',
+      0x47: 'テンキー5',
+      0x48: 'テンキー6',
+      0x49: 'テンキー+',
+      0x4a: 'テンキー1',
+      0x4b: 'テンキー2',
+      0x4c: 'テンキー3',
+      0x4d: 'テンキー=',
+      0x4e: 'テンキー0',
+      0x4f: 'テンキー,',
+      0x50: 'テンキー.',
+    };
+    for (const [codeStr, label] of Object.entries(expected)) {
+      const code = Number(codeStr);
+      expect(textLabelForKeyCode(code), `0x${code.toString(16)}`).toBe(label);
+    }
+  });
+
+  it('通常キーの2(0x02)はテンキーの2(0x4b)と表示が異なる(曖昧さの解消がこのテストの主眼)', () => {
+    const normal = textLabelForKeyCode(0x02);
+    const tenkey = textLabelForKeyCode(0x4b);
+    expect(normal).toBe('2');
+    expect(tenkey).toBe('テンキー2');
+    expect(normal).not.toBe(tenkey);
+  });
+
+  it('テンキー以外の通常キーはlabelForKeyCodeと同じ(接頭辞を付けない)', () => {
+    expect(textLabelForKeyCode(0x1c)).toBe('RET'); // ENTER/KPEnterは同じスキャンコードなので区別不要
+    expect(textLabelForKeyCode(0x3d)).toBe('↓');
   });
 });
 
@@ -269,5 +316,114 @@ describe('SharedKeyInput統一: ソフトキーボードとゲームパッドが
 
     // UPはsoftkeyboardがまだ押しているためbreakは送られない。RIGHTはgamepadだけが押していたためbreakが送られる。
     expect(calls).toEqual([{ code: 0x3c, down: false }]);
+  });
+});
+
+// 実機報告: ゲームパッド設定で[新規検出]を押した直後(=パッドのボタンをまだ押していない)に
+// 下のキーピッカーを押しても何も起きず、割当編集欄も更新されないまま、UIも「押せる状態」に
+// 見えてしまう不具合。根本原因はキーピッカーに「無効状態」の概念が無かったこと。
+// gamepadPickerAvailability()/hostkeyPickerAvailability() はrenderEditor()/renderHostKeyTab()から
+// DOM操作を切り離した純粋関数で、ピッカーの有効/無効・案内文をここで一元判定する。
+describe('gamepadPickerAvailability(タブ1: ピッカーは「行選択中」または「新規検出のキー選択待ち」の間だけ有効)', () => {
+  it('初期状態(パッドはあるが行未選択・検出未開始): 無効。案内は「行を選ぶか新規検出を」', () => {
+    const result = gamepadPickerAvailability({
+      hasPad: true,
+      isPendingGeneric: false,
+      hasSelectedRow: false,
+      isWaitingGenericPad: false,
+    });
+    expect(result).toEqual({ active: false, hintKey: 'gamepadPickerIdleHint' });
+  });
+
+  it('パッド未接続: 無効(行選択中であってもパッドが無ければ無効。とはいえパッド無しでは選択も起こらない前提)', () => {
+    const result = gamepadPickerAvailability({
+      hasPad: false,
+      isPendingGeneric: false,
+      hasSelectedRow: false,
+      isWaitingGenericPad: false,
+    });
+    expect(result.active).toBe(false);
+    expect(result.hintKey).toBe('gamepadPickerIdleHint');
+  });
+
+  it('行選択中: 有効。案内は「行を選択中」', () => {
+    const result = gamepadPickerAvailability({
+      hasPad: true,
+      isPendingGeneric: false,
+      hasSelectedRow: true,
+      isWaitingGenericPad: false,
+    });
+    expect(result).toEqual({ active: true, hintKey: 'gamepadRowSelectedHint' });
+  });
+
+  it('【本バグの核心】新規検出を押した直後、パッドのボタンをまだ押していない(detect.kind===generic, pendingGeneric===null)間: ' +
+    '無効のまま。案内は「入力を待っています」で、今どの手順にいるか分かるようにする', () => {
+    const result = gamepadPickerAvailability({
+      hasPad: true,
+      isPendingGeneric: false,
+      hasSelectedRow: false,
+      isWaitingGenericPad: true,
+    });
+    expect(result).toEqual({ active: false, hintKey: 'gamepadDetectWaiting' });
+  });
+
+  it('新規検出でパッドのボタンを検出済み(pendingGeneric中): 有効。案内は「検出しました。キーを選んでください」', () => {
+    const result = gamepadPickerAvailability({
+      hasPad: true,
+      isPendingGeneric: true,
+      hasSelectedRow: false,
+      isWaitingGenericPad: false,
+    });
+    expect(result).toEqual({ active: true, hintKey: 'gamepadPendingPickKey' });
+  });
+
+  it('キャンセル後(pendingGeneric/選択行ともに解除): 無効に戻り、案内も初期状態のものに戻る', () => {
+    const afterCancel = gamepadPickerAvailability({
+      hasPad: true,
+      isPendingGeneric: false,
+      hasSelectedRow: false,
+      isWaitingGenericPad: false,
+    });
+    expect(afterCancel).toEqual({ active: false, hintKey: 'gamepadPickerIdleHint' });
+  });
+
+  it('pendingGenericが行選択より優先される(両方trueは通常起こらないが、キー確定を優先すべき状態として扱う)', () => {
+    const result = gamepadPickerAvailability({
+      hasPad: true,
+      isPendingGeneric: true,
+      hasSelectedRow: true,
+      isWaitingGenericPad: false,
+    });
+    expect(result).toEqual({ active: true, hintKey: 'gamepadPendingPickKey' });
+  });
+});
+
+describe('hostkeyPickerAvailability(タブ2: ピッカーは物理キーを検出済み(キー選択待ち)の間だけ有効。タブ1と同じ「無効状態」の欠落を防ぐ)', () => {
+  it('初期状態(検出未開始): 無効。案内は「[追加]を押して」', () => {
+    expect(hostkeyPickerAvailability({ isPendingPick: false, isDetecting: false })).toEqual({
+      active: false,
+      hintKey: 'hostkeyPickerIdleHint',
+    });
+  });
+
+  it('物理キー検出待ち中(まだキーを押していない): 無効のまま。案内は「ホストのキーを押してください」', () => {
+    expect(hostkeyPickerAvailability({ isPendingPick: false, isDetecting: true })).toEqual({
+      active: false,
+      hintKey: 'hostkeyDetectWaiting',
+    });
+  });
+
+  it('物理キーを検出済み(PC-98キー選択待ち): 有効。案内は「検出しました。PC-98キーを選んでください」', () => {
+    expect(hostkeyPickerAvailability({ isPendingPick: true, isDetecting: false })).toEqual({
+      active: true,
+      hintKey: 'hostkeyPendingPickKey',
+    });
+  });
+
+  it('キャンセル後: 無効に戻る', () => {
+    expect(hostkeyPickerAvailability({ isPendingPick: false, isDetecting: false })).toEqual({
+      active: false,
+      hintKey: 'hostkeyPickerIdleHint',
+    });
   });
 });
