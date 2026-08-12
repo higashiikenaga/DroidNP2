@@ -39,7 +39,30 @@ import {
   type Source,
 } from './api/gamepad.ts';
 import { SharedKeyInput } from './api/shared-key-input.ts';
-import type { GamepadDialogCallbacks, HostKeyDialogCallbacks } from './ui/gamepad-ui.ts';
+import type { GamepadDialogCallbacks, HostKeyDialogCallbacks, VpadDialogCallbacks } from './ui/gamepad-ui.ts';
+import {
+  createVirtualPad,
+  placementForViewport,
+  type VirtualPad,
+  type VpadPlacement,
+  type VpadSideBoxes,
+} from './ui/virtual-pad.ts';
+import {
+  activeProfile as activeVpadProfile,
+  BUILTIN_CURSOR_ZX_ID,
+  BUILTIN_TENKEY_ID,
+  clearBinding as clearVpadBinding,
+  createProfile as createVpadProfile,
+  deleteProfile as deleteVpadProfile,
+  duplicateProfile as duplicateVpadProfile,
+  loadVpadStore,
+  renameProfile as renameVpadProfile,
+  saveVpadStore,
+  setActiveProfile as setActiveVpadProfile,
+  setBinding as setVpadBinding,
+  setVpadEnabled,
+  type InputProfileStore,
+} from './api/input-profile.ts';
 import {
   clearBinding as hostKeyClearBinding,
   createHostKeyHandlers,
@@ -129,6 +152,7 @@ if (!app) {
 let ui: PlayerUI;
 let np2: WebNP2;
 let debuggerController: DebuggerController;
+let virtualPad: VirtualPad | null = null;
 let bootStarted = false;
 
 /**
@@ -1383,8 +1407,8 @@ async function handleCreateBlankHdd(): Promise<void> {
 
 // --- ゲームパッド ---
 //
-// WebNP2 にはキー入力源が「ソフトキーボード」「テキスト貼り付け」「ゲームパッド」の3系統ある。
-// このうちソフトキーボード(onVirtualKey)とゲームパッドは、押しっぱなし(down)→離す(up)の
+// WebNP2 にはキー入力源としてソフトキーボード、バーチャルパッド、テキスト貼り付け、
+// 物理ゲームパッド等がある。このうち貼り付け以外は、押しっぱなし(down)→離す(up)の
 // 「保持」を伴う入力源で、同じPC-98キーを2つの入力源が同時に押していて片方だけ離した場合、
 // 素朴に coreKey(down/up) を呼ぶとその瞬間にコアへbreakが送られてしまい、もう一方の入力源が
 // まだ押しているつもりのキーが上がってしまう不具合が起きる(shared-key-input.ts参照)。
@@ -1606,6 +1630,69 @@ const hostKeyDialogCallbacks: HostKeyDialogCallbacks = {
   },
 };
 
+let vpadStore: InputProfileStore = loadVpadStore();
+let currentVpadPlacement: VpadPlacement = 'overlay';
+
+function applyVpadPlacement(placement: Exclude<VpadPlacement, 'overlay'>): void {
+  if (!virtualPad || !ui?.vpadOverlay) return;
+  const stage = ui.canvas.parentElement;
+  const card = stage?.parentElement;
+  const keyboard = card?.querySelector<HTMLElement>('.kbd-panel');
+  if (!stage || !card || !keyboard) return;
+  const changed = currentVpadPlacement !== placement;
+  currentVpadPlacement = placement;
+  if (placement === 'panel') {
+    ui.vpadOverlay.style.height = `${Math.min(260, Math.max(160, Math.round(window.innerWidth * 0.7)))}px`;
+    if (changed || ui.vpadOverlay.parentElement !== card) card.insertBefore(ui.vpadOverlay, keyboard);
+    virtualPad.setPlacement('panel');
+  } else {
+    ui.vpadOverlay.style.height = '';
+    if (changed || ui.vpadOverlay.parentElement !== document.body) document.body.append(ui.vpadOverlay);
+    const rect = stage.getBoundingClientRect();
+    const boxes: VpadSideBoxes = {
+      left: { x: 0, y: rect.top, w: Math.max(0, rect.left), h: rect.height },
+      right: { x: rect.right, y: rect.top, w: Math.max(0, window.innerWidth - rect.right), h: rect.height },
+    };
+    virtualPad.setPlacement('sides', boxes);
+  }
+}
+
+function refreshVpadPlacement(): void {
+  if (!virtualPad || !ui) return;
+  const placement = placementForViewport(window.innerWidth, window.innerHeight);
+  const constrainForSides = vpadStore.enabled && placement === 'sides';
+  const classChanged = document.body.classList.contains('vpad-sides-active') !== constrainForSides;
+  document.body.classList.toggle('vpad-sides-active', constrainForSides);
+  if (classChanged) {
+    ui.refreshLayout();
+    requestAnimationFrame(() => applyVpadPlacement(placement));
+  } else {
+    applyVpadPlacement(placement);
+  }
+}
+
+function persistVpadStore(next: InputProfileStore): void {
+  virtualPad?.releaseAll();
+  vpadStore = next;
+  saveVpadStore(vpadStore);
+  virtualPad?.setProfile(activeVpadProfile(vpadStore));
+  refreshVpadPlacement();
+  virtualPad?.setVisible(vpadStore.enabled);
+  if (ui) ui.setVirtualPadEnabled(vpadStore.enabled);
+}
+
+const vpadDialogCallbacks: VpadDialogCallbacks = {
+  getStore: () => vpadStore,
+  profileLabel: (id, fallback) => id === BUILTIN_CURSOR_ZX_ID ? t('vpadProfileCursorZx') : id === BUILTIN_TENKEY_ID ? t('vpadProfileTenkey') : fallback,
+  setActiveProfile: (id) => persistVpadStore(setActiveVpadProfile(vpadStore, id)),
+  createProfile: (label) => persistVpadStore(createVpadProfile(vpadStore, label)),
+  duplicateProfile: (sourceId, label) => persistVpadStore(duplicateVpadProfile(vpadStore, sourceId, label)),
+  renameProfile: (id, label) => persistVpadStore(renameVpadProfile(vpadStore, id, label)),
+  deleteProfile: (id) => persistVpadStore(deleteVpadProfile(vpadStore, id)),
+  setBinding: (profileId, sourceId, code) => persistVpadStore(setVpadBinding(vpadStore, profileId, sourceId, code)),
+  clearBinding: (profileId, sourceId) => persistVpadStore(clearVpadBinding(vpadStore, profileId, sourceId)),
+};
+
 async function handlePasteText(text: string): Promise<void> {
   try {
     const { skipped } = await np2.pasteText(text);
@@ -1684,6 +1771,9 @@ function init(): void {
         if (down) sharedKeyInput.press('softkeyboard', code);
         else sharedKeyInput.release('softkeyboard', code);
       },
+      onVirtualKeyReleaseAll: () => sharedKeyInput.releaseSource('softkeyboard'),
+      onVirtualPadSetEnabled: (enabled) => persistVpadStore(setVpadEnabled(vpadStore, enabled)),
+      onVirtualPadReleaseAll: () => sharedKeyInput.releaseSource('vpad'),
       onTouchClick: (x, y, button) =>
         queueTouchOp(async () => {
           mouseTrackTarget = { x, y };
@@ -1750,9 +1840,24 @@ function init(): void {
       },
       gamepad: gamepadDialogCallbacks,
       hostkey: hostKeyDialogCallbacks,
+      vpad: vpadDialogCallbacks,
     },
     { offerFreeDosChoice: !diskSpecified, trackingEnabled: params.get('mousetrack') !== '0' },
   );
+  virtualPad = createVirtualPad(ui.vpadOverlay, sharedKeyInput);
+  refreshVpadPlacement();
+  virtualPad.setProfile(activeVpadProfile(vpadStore));
+  virtualPad.setVisible(vpadStore.enabled);
+  ui.setVirtualPadEnabled(vpadStore.enabled);
+  // 400/480ライン切替はcanvas属性変更として来るため、player側の再スケール後に再配置する。
+  new MutationObserver(() => requestAnimationFrame(refreshVpadPlacement))
+    .observe(ui.canvas, { attributes: true, attributeFilter: ['width', 'height'] });
+  new ResizeObserver(() => requestAnimationFrame(refreshVpadPlacement)).observe(ui.canvas.parentElement!);
+  window.addEventListener('resize', refreshVpadPlacement);
+  window.addEventListener('orientationchange', () => {
+    virtualPad?.releaseAll();
+    refreshVpadPlacement();
+  });
   // 起動直後にも保存済みのホストキー再割り当て設定(enabled/バッジ)を反映する
   // (persistHostKeyStoreは変更操作からしか呼ばれないため、ロードしただけの初期状態はここで揃える)。
   ui.setHostKeyBadge(hostKeyStore.enabled);

@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_DEADZONE, detectNewlyActiveSource, snapshotPad, type Binding, type PadSnapshot, type Source } from '../src/api/gamepad.ts';
 import { SharedKeyInput } from '../src/api/shared-key-input.ts';
 
@@ -20,6 +20,9 @@ let freshPadFor: (typeof import('../src/ui/gamepad-ui.ts'))['freshPadFor'];
 let textLabelForKeyCode: (typeof import('../src/ui/gamepad-ui.ts'))['textLabelForKeyCode'];
 let gamepadPickerAvailability: (typeof import('../src/ui/gamepad-ui.ts'))['gamepadPickerAvailability'];
 let hostkeyPickerAvailability: (typeof import('../src/ui/gamepad-ui.ts'))['hostkeyPickerAvailability'];
+let vpadPickerAvailability: (typeof import('../src/ui/gamepad-ui.ts'))['vpadPickerAvailability'];
+let resolveProfileNameInput: (typeof import('../src/ui/gamepad-ui.ts'))['resolveProfileNameInput'];
+let applyProfileNameInput: (typeof import('../src/ui/gamepad-ui.ts'))['applyProfileNameInput'];
 
 beforeAll(async () => {
   if (typeof (globalThis as { location?: unknown }).location === 'undefined') {
@@ -40,6 +43,9 @@ beforeAll(async () => {
     textLabelForKeyCode,
     gamepadPickerAvailability,
     hostkeyPickerAvailability,
+    vpadPickerAvailability,
+    resolveProfileNameInput,
+    applyProfileNameInput,
   } = await import('../src/ui/gamepad-ui.ts'));
   // 実行環境のnavigator.languageに依存せず文言を固定するため、明示的に日本語へ設定する。
   const { setLang } = await import('../src/ui/strings.ts');
@@ -425,5 +431,38 @@ describe('hostkeyPickerAvailability(タブ2: ピッカーは物理キーを検�
       active: false,
       hintKey: 'hostkeyPickerIdleHint',
     });
+  });
+});
+
+describe('vpadPickerAvailability(タブ3)', () => {
+  it('組み込みプロファイルや行未選択では無効', () => {
+    expect(vpadPickerAvailability({ hasEditableProfile: false, hasSelectedSource: true })).toEqual({ active: false, hintKey: 'vpadPickerIdleHint' });
+    expect(vpadPickerAvailability({ hasEditableProfile: true, hasSelectedSource: false })).toEqual({ active: false, hintKey: 'vpadPickerIdleHint' });
+  });
+  it('編集可能プロファイルの行を選んだときだけ有効', () => {
+    expect(vpadPickerAvailability({ hasEditableProfile: true, hasSelectedSource: true })).toEqual({ active: true, hintKey: 'vpadPendingPickKey' });
+  });
+});
+
+describe('プロファイル名のインライン入力', () => {
+  it('前後の空白を除去した名前を受理し、変更処理を1回だけ呼ぶ', () => {
+    const accepted = vi.fn();
+    expect(applyProfileNameInput('  操作用  ', accepted)).toEqual({ kind: 'accepted', name: '操作用' });
+    expect(accepted).toHaveBeenCalledOnce();
+    expect(accepted).toHaveBeenCalledWith('操作用');
+  });
+  it.each(['', ' ', '\t\n'])('空文字・空白のみ(%j)を拒否し、変更処理を呼ばない', (value) => {
+    const accepted = vi.fn();
+    expect(applyProfileNameInput(value, accepted)).toEqual({ kind: 'invalid' });
+    expect(accepted).not.toHaveBeenCalled();
+  });
+  it('キャンセル(null)では変更処理を呼ばない', () => {
+    const accepted = vi.fn();
+    expect(applyProfileNameInput(null, accepted)).toEqual({ kind: 'cancelled' });
+    expect(accepted).not.toHaveBeenCalled();
+  });
+  it('バリデーション関数単体でも空白とキャンセルを区別する', () => {
+    expect(resolveProfileNameInput('   ')).toEqual({ kind: 'invalid' });
+    expect(resolveProfileNameInput(null)).toEqual({ kind: 'cancelled' });
   });
 });

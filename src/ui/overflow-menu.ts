@@ -75,6 +75,14 @@ export type OverflowMenuState =
 export const CLOSED_OVERFLOW_MENU_STATE: OverflowMenuState = { level: 'closed' };
 export const ROOT_OVERFLOW_MENU_STATE: OverflowMenuState = { level: 'root' };
 
+/**
+ * 第1階層は「…」から開いたことが自明なので見出しを出さない。
+ * 狭い画面の第2階層は親メニューが消えて現在位置が分からなくなるため見出しを残す。
+ */
+export function overflowMenuHasHeading(level: 'root' | 'group'): boolean {
+  return level === 'group';
+}
+
 /** 「…」ボタン押下時の次状態。既に何か開いていれば閉じる(トグル)。 */
 export function toggleOverflowMenu(state: OverflowMenuState): OverflowMenuState {
   return state.level === 'closed' ? ROOT_OVERFLOW_MENU_STATE : CLOSED_OVERFLOW_MENU_STATE;

@@ -7,6 +7,7 @@ import {
   isWideOverflowMenu,
   OVERFLOW_GROUP_ORDER,
   OVERFLOW_GROUPS,
+  overflowMenuHasHeading,
   ROOT_OVERFLOW_MENU_STATE,
   selectOverflowGroup,
   toggleOverflowMenu,
@@ -79,5 +80,15 @@ describe('オーバーフローメニューの開閉状態遷移', () => {
 
   it('差し替え式の「← 戻る」はrootへ戻る', () => {
     expect(backToOverflowRoot()).toEqual(ROOT_OVERFLOW_MENU_STATE);
+  });
+});
+
+describe('オーバーフローメニューの見出し', () => {
+  it('第1階層には冗長な「その他」見出しを出さない', () => {
+    expect(overflowMenuHasHeading('root')).toBe(false);
+  });
+
+  it('狭い画面で親が消える第2階層にはグループ見出しを残す', () => {
+    expect(overflowMenuHasHeading('group')).toBe(true);
   });
 });

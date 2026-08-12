@@ -6,7 +6,8 @@ import type { RomEntry } from '../api/roms.ts';
 import { buildKbdRows } from './kbd-layout.ts';
 import { buildFileManagerDialog, type FileManagerCallbacks } from './filemanager.ts';
 import { buildDebuggerDialog, type DebuggerCallbacks } from './debugger.ts';
-import { buildGamepadDialog, type GamepadDialogCallbacks, type HostKeyDialogCallbacks } from './gamepad-ui.ts';
+import { buildGamepadDialog, type GamepadDialogCallbacks, type HostKeyDialogCallbacks, type VpadDialogCallbacks } from './gamepad-ui.ts';
+import { applyInputPanelTransition, inputPanelUiState, type InputPanelKind } from './input-panel.ts';
 import {
   ALWAYS_VISIBLE_ACTIONS,
   backToOverflowRoot,
@@ -15,11 +16,13 @@ import {
   type OverflowGroupId,
   OVERFLOW_GROUP_ORDER,
   OVERFLOW_GROUPS,
+  overflowMenuHasHeading,
   type OverflowMenuState,
   selectOverflowGroup,
   toggleOverflowMenu,
   type ToolbarActionId,
 } from './overflow-menu.ts';
+import { bindStartupOverlayButtons } from './startup-overlay.ts';
 
 export type { LibraryEntry, LibraryGroup, LibraryNode } from './types.ts';
 import type { LibraryEntry, LibraryGroup, LibraryNode } from './types.ts';
@@ -92,6 +95,11 @@ export interface PlayerCallbacks {
   onMouseButton: (button: 0 | 1, down: boolean) => void;
   /** 仮想キーボードのキー押下/解放。code は np2 側のキーコード。 */
   onVirtualKey: (code: number, down: boolean) => void;
+  /** ソフトキーボード由来の押下を一括解放する。 */
+  onVirtualKeyReleaseAll: () => void;
+  onVirtualPadSetEnabled: (enabled: boolean) => void;
+  /** バーチャルパッド由来の押下を一括解放する。 */
+  onVirtualPadReleaseAll: () => void;
   /** canvasへのタッチ操作: 短いタップ=クリック(button: 0=左/1=右)。 */
   onTouchClick: (x: number, y: number, button: 0 | 1) => void;
   /** canvasへの長押し開始(左ドラッグ開始)。 */
@@ -149,6 +157,7 @@ export interface PlayerCallbacks {
   gamepad: GamepadDialogCallbacks;
   /** ホストキー再割り当て(入力設定ダイアログのキーボードタブ)が使うコールバック群。詳細はgamepad-ui.ts参照。 */
   hostkey: HostKeyDialogCallbacks;
+  vpad: VpadDialogCallbacks;
 }
 
 export interface PlayerOptions {
@@ -160,6 +169,9 @@ export interface PlayerOptions {
 
 export interface PlayerUI {
   canvas: HTMLCanvasElement;
+  vpadOverlay: HTMLDivElement;
+  setVirtualPadEnabled(enabled: boolean): void;
+  refreshLayout(): void;
   setStatus(message: string, isError?: boolean): void;
   setProgress(label: string, ratio: number | null): void;
   hideProgress(): void;
@@ -393,8 +405,8 @@ function rescale(canvas: HTMLCanvasElement, stage: HTMLElement, card: HTMLElemen
   // (高さが足りない場合は従来の整数倍時代と同じくページスクロールに任せる)。
   // ただし疑似フルスクリーン中は「1画面に収める」ことが目的なので高さも効かせる。
   // 周辺クロームを畳んで高さが固定されているため、上記の収縮ループは起きない。
-  const pseudoFullscreen = document.body.classList.contains('pseudo-fullscreen');
-  const subScale = pseudoFullscreen ? Math.max(0.3, fit) : Math.max(0.3, Math.min(1, widthFit));
+  const heightConstrained = document.body.classList.contains('pseudo-fullscreen') || document.body.classList.contains('vpad-sides-active');
+  const subScale = heightConstrained ? Math.max(0.3, fit) : Math.max(0.3, Math.min(1, widthFit));
   const scale = fit >= 1 ? Math.floor(fit) : subScale;
   const w = Math.round(native.w * scale);
   const h = Math.round(native.h * scale);
@@ -449,7 +461,14 @@ export function buildPlayerUI(
 
   const muteBanner = el('div', { class: 'mute-banner hidden' }, [t('audioMuted')]);
 
-  const stage = el('div', { class: 'stage' }, [canvas, overlay, muteBanner]);
+  const vpadOverlay = el('div', { class: 'virtual-pad hidden' });
+  const btnPanelKeyboard = iconButton(ICONS.keyboard, t('inputPanelSwitchKeyboard'), 'panel-switch-btn');
+  const btnPanelPad = iconButton(ICONS.gamepad, t('inputPanelSwitchPad'), 'panel-switch-btn');
+  btnPanelKeyboard.setAttribute('aria-pressed', 'false');
+  btnPanelPad.setAttribute('aria-pressed', 'false');
+  btnPanelPad.setAttribute('aria-haspopup', 'menu');
+  const inputPanelSwitch = el('div', { class: 'input-panel-switch hidden' }, [btnPanelKeyboard, btnPanelPad]);
+  const stage = el('div', { class: 'stage' }, [canvas, overlay, muteBanner, vpadOverlay]);
 
   const btnMachineReset = iconButton(ICONS.machineReset, t('toolbarMachineReset'));
   const btnSaveState = iconButton(ICONS.saveState, t('toolbarSaveState'));
@@ -510,8 +529,13 @@ export function buildPlayerUI(
   };
   const overflowActionIds = OVERFLOW_GROUP_ORDER.flatMap((groupId) => OVERFLOW_GROUPS[groupId]);
 
+  // 入力パネル切替は、配置方式(panel/sides/overlay)に左右されないツールバーへ置く。
+  // 仮想キーボードボタンの直後へ明示的に差し込み、操作同士の隣接関係を保つ。
+  const alwaysVisibleButtons = ALWAYS_VISIBLE_ACTIONS.flatMap((id) =>
+    id === 'virtualKbd' ? [actionButtons[id], inputPanelSwitch] : [actionButtons[id]],
+  );
   const toolbar = el('div', { class: 'toolbar' }, [
-    ...ALWAYS_VISIBLE_ACTIONS.map((id) => actionButtons[id]),
+    ...alwaysVisibleButtons,
     btnHelp,
     btnLang,
     btnToolbarOverflow,
@@ -1176,12 +1200,16 @@ export function buildPlayerUI(
   libraryBackdrop.addEventListener('click', (e) => {
     if (e.target === libraryBackdrop) closeLibraryModal();
   });
-  libraryStartBtn.addEventListener('click', () => openLibraryModal());
 
   // --- FDDスロットの「ライブラリから挿入」メニュー ---
   // アーカイブ由来のグループはフォルダ1行にまとめ、クリックで中身(サブメニュー)へ潜る。
   // ディスク入れ替えのたびにライブラリダイアログを開かずに済むようにするための導線。
   const fdLibraryMenu = el('div', { class: 'library-menu hidden', role: 'menu' });
+  const inputPanelMenu = el('div', {
+    class: 'library-menu input-panel-menu hidden',
+    role: 'menu',
+    tabindex: '-1',
+  });
 
   function closeFdLibraryMenu(): void {
     fdLibraryMenu.classList.add('hidden');
@@ -1353,8 +1381,118 @@ export function buildPlayerUI(
 
   // 入力設定(ゲームパッド+ホストキー再割り当て)。詳細なDOM・状態管理はgamepad-ui.tsへ委譲する
   // (filemanager.tsと同じ流儀)。
-  const gamepadDialog = buildGamepadDialog(container, callbacks.gamepad, callbacks.hostkey);
+  const gamepadDialog = buildGamepadDialog(container, callbacks.gamepad, callbacks.hostkey, callbacks.vpad);
   btnGamepad.addEventListener('click', () => gamepadDialog.open());
+
+  let virtualPadVisible = false;
+  let inputPanelPreference: InputPanelKind = 'keyboard';
+
+  function currentInputPanelState(): { keyboardVisible: boolean; padVisible: boolean } {
+    return {
+      keyboardVisible: !kbdPanel.classList.contains('hidden'),
+      padVisible: virtualPadVisible,
+    };
+  }
+
+  function syncInputPanelUi(): void {
+    const state = inputPanelUiState(currentInputPanelState());
+    inputPanelSwitch.classList.toggle('hidden', !state.chipVisible);
+    btnPanelKeyboard.setAttribute('aria-pressed', state.keyboardPressed ? 'true' : 'false');
+    btnPanelPad.setAttribute('aria-pressed', state.padPressed ? 'true' : 'false');
+    btnVirtualKbd.classList.toggle('active', state.chipVisible);
+    btnVirtualKbd.setAttribute('aria-pressed', state.chipVisible ? 'true' : 'false');
+  }
+
+  function closeInputPanelMenu(): void {
+    inputPanelMenu.classList.add('hidden');
+    inputPanelMenu.textContent = '';
+  }
+
+  function switchInputPanel(target: InputPanelKind | 'closed'): void {
+    closeInputPanelMenu();
+    applyInputPanelTransition(currentInputPanelState(), target, {
+      releaseKeyboard: () => {
+        callbacks.onVirtualKeyReleaseAll();
+        heldOneshot.clear();
+      },
+      releasePad: () => callbacks.onVirtualPadReleaseAll(),
+      setKeyboardVisible: (visible) => kbdPanel.classList.toggle('hidden', !visible),
+      setPadVisible: (visible) => callbacks.onVirtualPadSetEnabled(visible),
+    });
+    if (target !== 'closed') inputPanelPreference = target;
+    syncInputPanelUi();
+    scheduleRescale();
+  }
+
+  function positionInputPanelMenu(anchorEl: HTMLElement): void {
+    inputPanelMenu.style.left = '0px';
+    inputPanelMenu.style.top = '0px';
+    inputPanelMenu.classList.remove('hidden');
+    const rect = anchorEl.getBoundingClientRect();
+    const menuRect = inputPanelMenu.getBoundingClientRect();
+    const left = Math.max(4, Math.min(rect.right - menuRect.width, window.innerWidth - menuRect.width - 4));
+    const below = rect.bottom + 4;
+    const top = below + menuRect.height <= window.innerHeight - 4
+      ? below
+      : Math.max(4, rect.top - menuRect.height - 4);
+    inputPanelMenu.style.left = `${Math.round(left)}px`;
+    inputPanelMenu.style.top = `${Math.round(top)}px`;
+  }
+
+  function renderVpadProfileMenu(): void {
+    inputPanelMenu.textContent = '';
+    const store = callbacks.vpad.getStore();
+    for (const profile of store.profiles) {
+      const row = menuRow(
+        callbacks.vpad.profileLabel(profile.id, profile.label),
+        profile.id === store.activeId ? '✓' : undefined,
+      );
+      onActivate(row, () => {
+        callbacks.vpad.setActiveProfile(profile.id);
+        closeInputPanelMenu();
+      });
+      inputPanelMenu.append(row);
+    }
+    inputPanelMenu.append(el('div', { class: 'vpad-menu-separator', role: 'separator' }));
+    const editRow = menuRow(t('vpadEditAssignmentsMenuItem'));
+    onActivate(editRow, () => {
+      closeInputPanelMenu();
+      gamepadDialog.open('vpad');
+    });
+    inputPanelMenu.append(editRow);
+    positionInputPanelMenu(btnPanelPad);
+    inputPanelMenu.focus({ preventScroll: true });
+  }
+
+  btnVirtualKbd.addEventListener('click', () => {
+    const state = inputPanelUiState(currentInputPanelState());
+    switchInputPanel(state.chipVisible ? 'closed' : inputPanelPreference);
+  });
+  btnPanelKeyboard.addEventListener('click', (event) => {
+    event.stopPropagation();
+    switchInputPanel('keyboard');
+  });
+  btnPanelPad.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (virtualPadVisible) {
+      if (inputPanelMenu.classList.contains('hidden')) renderVpadProfileMenu();
+      else closeInputPanelMenu();
+    } else {
+      switchInputPanel('pad');
+    }
+  });
+  inputPanelMenu.addEventListener('click', (event) => event.stopPropagation());
+  for (const eventName of ['keydown', 'keyup', 'keypress'] as const) {
+    inputPanelSwitch.addEventListener(eventName, (event) => event.stopPropagation());
+    inputPanelMenu.addEventListener(eventName, (event) => event.stopPropagation());
+  }
+  inputPanelMenu.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    closeInputPanelMenu();
+    btnPanelPad.focus();
+  });
+  document.addEventListener('click', closeInputPanelMenu);
 
   // --- ツールバー「…」オーバーフローメニュー ---
   // グループ分け(overflow-menu.tsのOVERFLOW_GROUPS)・開閉状態遷移(同ファイルのOverflowMenuState)は
@@ -1389,7 +1527,11 @@ export function buildPlayerUI(
   function overflowActionRow(id: ToolbarActionId): HTMLElement {
     const btn = actionButtons[id];
     const icon = btn.querySelector<SVGElement>('svg');
-    const row = menuRow(btn.title, undefined, '', { icon, iconSlot: true, disabled: btn.disabled });
+    const row = menuRow(btn.title, undefined, '', {
+      icon,
+      iconSlot: true,
+      disabled: btn.disabled,
+    });
     if (!btn.disabled) {
       onActivate(row, () => {
         closeOverflowMenu();
@@ -1450,7 +1592,10 @@ export function buildPlayerUI(
       overflowMenuState = backToOverflowRoot();
       renderOverflowRoot();
     });
-    overflowMenu.append(back, el('div', { class: 'library-menu-title' }, [OVERFLOW_GROUP_LABEL[groupId]()]));
+    overflowMenu.append(back);
+    if (overflowMenuHasHeading('group')) {
+      overflowMenu.append(el('div', { class: 'library-menu-title' }, [OVERFLOW_GROUP_LABEL[groupId]()]));
+    }
     for (const id of OVERFLOW_GROUPS[groupId]) overflowMenu.append(overflowActionRow(id));
     positionOverflowMenu(btnToolbarOverflow);
     overflowMenu.focus({ preventScroll: true });
@@ -1461,7 +1606,11 @@ export function buildPlayerUI(
     overflowMenu.textContent = '';
     overflowSubmenu.classList.add('hidden');
     overflowSubmenu.textContent = '';
-    overflowMenu.append(el('div', { class: 'library-menu-title' }, [t('toolbarMore')]));
+    // 第1階層は「…」を押して開いたことが自明なので見出しを出さない。
+    // 第2階層は狭い画面で親が消えて階層が分からなくなるため、renderOverflowGroup()で残す。
+    if (overflowMenuHasHeading('root')) {
+      overflowMenu.append(el('div', { class: 'library-menu-title' }, [t('toolbarMore')]));
+    }
     const wide = isWideOverflowMenu(window.innerWidth);
     for (const groupId of OVERFLOW_GROUP_ORDER) {
       const row = menuRow(OVERFLOW_GROUP_LABEL[groupId](), undefined, 'group', { iconSlot: true });
@@ -1516,14 +1665,15 @@ export function buildPlayerUI(
     romBackdrop,
     libraryBackdrop,
     fdLibraryMenu,
+    inputPanelMenu,
     overflowMenu,
     overflowSubmenu,
   );
 
-  startBtn.addEventListener('click', () => callbacks.onStart());
-  freeDosBtn?.addEventListener('click', () => callbacks.onStartFreeDos());
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) callbacks.onStart();
+  bindStartupOverlayButtons({ plain: startBtn, freeDos: freeDosBtn, library: libraryStartBtn }, {
+    startPlain: callbacks.onStart,
+    startFreeDos: callbacks.onStartFreeDos,
+    openLibrary: openLibraryModal,
   });
   btnMachineReset.addEventListener('click', () => callbacks.onMachineReset());
   btnScreenshot.addEventListener('click', () => callbacks.onScreenshot());
@@ -1715,11 +1865,6 @@ export function buildPlayerUI(
     btnFullscreen.classList.toggle('active', on);
     scheduleRescale();
   });
-  btnVirtualKbd.addEventListener('click', () => {
-    const nowHidden = kbdPanel.classList.toggle('hidden');
-    btnVirtualKbd.classList.toggle('active', !nowHidden);
-    scheduleRescale();
-  });
   btnLang.addEventListener('click', () => {
     setLang(getLang() === 'ja' ? 'en' : 'ja');
     ui.applyStrings();
@@ -1844,6 +1989,13 @@ export function buildPlayerUI(
 
   const ui: PlayerUI = {
     canvas,
+    vpadOverlay,
+    setVirtualPadEnabled(enabled: boolean) {
+      virtualPadVisible = enabled;
+      if (enabled) inputPanelPreference = 'pad';
+      syncInputPanelUi();
+    },
+    refreshLayout: scheduleRescale,
     setStatus(message: string, isError = false) {
       statusPanel.textContent = message;
       statusPanel.classList.toggle('error', isError);
@@ -1920,13 +2072,10 @@ export function buildPlayerUI(
       btnDebugger.disabled = !enabled;
       debuggerDialog.setEnabled(enabled);
       if (!enabled) {
+        if (!kbdPanel.classList.contains('hidden')) callbacks.onVirtualKeyReleaseAll();
         kbdPanel.classList.add('hidden');
-        btnVirtualKbd.classList.remove('active');
-        for (const [code, btn] of heldOneshot) {
-          btn.classList.remove('active');
-          callbacks.onVirtualKey(code, false);
-        }
         heldOneshot.clear();
+        syncInputPanelUi();
       }
       // FD挿入は起動前=そのFDから起動(main.ts側で分岐)、起動後=ライブ交換のため常時有効。
       fdInsertBtn1.disabled = false;
@@ -2047,6 +2196,10 @@ export function buildPlayerUI(
       btnPasteText.setAttribute('aria-label', t('toolbarPasteText'));
       btnVirtualKbd.title = t('toolbarVirtualKbd');
       btnVirtualKbd.setAttribute('aria-label', t('toolbarVirtualKbd'));
+      btnPanelKeyboard.title = t('inputPanelSwitchKeyboard');
+      btnPanelKeyboard.setAttribute('aria-label', t('inputPanelSwitchKeyboard'));
+      btnPanelPad.title = t('inputPanelSwitchPad');
+      btnPanelPad.setAttribute('aria-label', t('inputPanelSwitchPad'));
       pasteInput.placeholder = t('pasteBarPlaceholder');
       pasteEnterLabelText.textContent = t('pasteBarEnterLabel');
       pasteSendBtn.textContent = t('pasteBarSend');

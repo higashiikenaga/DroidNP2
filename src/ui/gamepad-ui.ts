@@ -31,6 +31,7 @@ import {
   TENKEY_SPACE_PRESET,
 } from '../api/gamepad.ts';
 import { BUILTIN_TENKEY_ARROWS_ID, type HostKeyProfile, type HostKeyStore } from '../api/hostkey.ts';
+import type { InputProfileStore } from '../api/input-profile.ts';
 import { buildKbdRows, isTenkeyCode, labelForKeyCode } from './kbd-layout.ts';
 import { t } from './strings.ts';
 
@@ -64,6 +65,18 @@ export interface HostKeyDialogCallbacks {
   deleteProfile(id: string): void;
   setBinding(profileId: string, code: string, pc98Code: number): void;
   clearBinding(profileId: string, code: string): void;
+}
+
+export interface VpadDialogCallbacks {
+  getStore(): InputProfileStore;
+  profileLabel(id: string, fallback: string): string;
+  setActiveProfile(id: string): void;
+  createProfile(label: string): void;
+  duplicateProfile(sourceId: string, label: string): void;
+  renameProfile(id: string, label: string): void;
+  deleteProfile(id: string): void;
+  setBinding(profileId: string, sourceId: string, code: number): void;
+  clearBinding(profileId: string, sourceId: string): void;
 }
 
 /**
@@ -164,7 +177,9 @@ export type PickerHintKey =
   | 'gamepadRowSelectedHint'
   | 'hostkeyPickerIdleHint'
   | 'hostkeyDetectWaiting'
-  | 'hostkeyPendingPickKey';
+  | 'hostkeyPendingPickKey'
+  | 'vpadPickerIdleHint'
+  | 'vpadPendingPickKey';
 
 export interface PickerAvailability {
   /** true: 押して意味がある(disabled解除・見た目も通常表示)。false: 押しても意味が無いので無効化する。 */
@@ -207,8 +222,35 @@ export function hostkeyPickerAvailability(state: { isPendingPick: boolean; isDet
   return { active: false, hintKey: 'hostkeyPickerIdleHint' };
 }
 
+export function vpadPickerAvailability(state: { hasEditableProfile: boolean; hasSelectedSource: boolean }): PickerAvailability {
+  return state.hasEditableProfile && state.hasSelectedSource
+    ? { active: true, hintKey: 'vpadPendingPickKey' }
+    : { active: false, hintKey: 'vpadPickerIdleHint' };
+}
+
+export type ProfileNameInputResult =
+  | { kind: 'cancelled' }
+  | { kind: 'invalid' }
+  | { kind: 'accepted'; name: string };
+
+/** インライン名前入力の共通バリデーション。保存名は前後の空白を除去する。 */
+export function resolveProfileNameInput(value: string | null): ProfileNameInputResult {
+  if (value === null) return { kind: 'cancelled' };
+  const name = value.trim();
+  return name === '' ? { kind: 'invalid' } : { kind: 'accepted', name };
+}
+
+/** キャンセル・不正値ではコールバックを呼ばないことまで含めたUI共通処理。 */
+export function applyProfileNameInput(value: string | null, onAccepted: (name: string) => void): ProfileNameInputResult {
+  const result = resolveProfileNameInput(value);
+  if (result.kind === 'accepted') onAccepted(result.name);
+  return result;
+}
+
+export type InputSettingsTab = 'gamepad' | 'hostkey' | 'vpad';
+
 export interface GamepadDialog {
-  open(): void;
+  open(tab?: InputSettingsTab): void;
   /** 言語切替時、ダイアログ内の静的文言を現在の言語で貼り直す。開いていればライブ表示・編集エリアも再描画する。 */
   applyStrings(): void;
 }
@@ -225,6 +267,101 @@ function el<K extends keyof HTMLElementTagNameMap>(
   }
   for (const child of children) node.append(child);
   return node;
+}
+
+interface InlineProfileEditor {
+  element: HTMLElement;
+  open(options: { title: () => string; initial?: string; confirmOnly?: boolean; onAccepted: (name: string) => void }): void;
+  close(): void;
+  applyStrings(): void;
+}
+
+/** ネイティブprompt/confirmを使わず、入力設定ダイアログ内で完結する編集行。 */
+function createInlineProfileEditor(): InlineProfileEditor {
+  const titleEl = el('span', { class: 'gp-profile-inline-title' });
+  const input = el('input', {
+    type: 'text',
+    class: 'gp-profile-name-input',
+    maxlength: '80',
+    autocomplete: 'off',
+  }) as HTMLInputElement;
+  const errorEl = el('span', { class: 'gp-profile-name-error hidden' });
+  const okBtn = el('button', { type: 'submit', class: 'gp-preset-btn' });
+  const cancelBtn = el('button', { type: 'button', class: 'gp-detect-btn' });
+  const form = el('form', { class: 'gp-profile-inline hidden' }, [titleEl, input, errorEl, okBtn, cancelBtn]);
+  let titleProvider: (() => string) | null = null;
+  let onAccepted: ((name: string) => void) | null = null;
+  let confirmOnly = false;
+
+  // SDL2のdocumentリスナーへ名前入力やEnter/Escを漏らさない。貼り付け欄と同じbubble段。
+  for (const eventName of ['keydown', 'keyup', 'keypress'] as const) {
+    form.addEventListener(eventName, (event) => event.stopPropagation());
+  }
+
+  function close(): void {
+    form.classList.add('hidden');
+    errorEl.classList.add('hidden');
+    input.value = '';
+    titleProvider = null;
+    onAccepted = null;
+  }
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (!onAccepted) return;
+    if (confirmOnly) {
+      const accept = onAccepted;
+      close();
+      accept('');
+      return;
+    }
+    const accept = onAccepted;
+    const result = applyProfileNameInput(input.value, accept);
+    if (result.kind === 'invalid') {
+      errorEl.textContent = t('profileNameRequired');
+      errorEl.classList.remove('hidden');
+      input.focus();
+      return;
+    }
+    close();
+  });
+  cancelBtn.addEventListener('click', () => {
+    // 共通処理へnullを渡し、キャンセル時に変更コールバックが呼ばれない契約をUIでも使う。
+    if (onAccepted) applyProfileNameInput(null, onAccepted);
+    close();
+  });
+  input.addEventListener('input', () => errorEl.classList.add('hidden'));
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      cancelBtn.click();
+    }
+  });
+
+  return {
+    element: form,
+    open(options): void {
+      titleProvider = options.title;
+      onAccepted = options.onAccepted;
+      confirmOnly = options.confirmOnly === true;
+      titleEl.textContent = titleProvider();
+      input.classList.toggle('hidden', confirmOnly);
+      input.value = options.initial ?? '';
+      errorEl.classList.add('hidden');
+      form.classList.remove('hidden');
+      if (confirmOnly) okBtn.focus();
+      else requestAnimationFrame(() => { input.focus(); input.select(); });
+    },
+    close,
+    applyStrings(): void {
+      if (titleProvider) titleEl.textContent = titleProvider();
+      input.placeholder = t('profileNameInputLabel');
+      input.setAttribute('aria-label', t('profileNameInputLabel'));
+      okBtn.textContent = t('profileNameOk');
+      cancelBtn.textContent = t('profileNameCancel');
+      if (!errorEl.classList.contains('hidden')) errorEl.textContent = t('profileNameRequired');
+    },
+  };
 }
 
 /**
@@ -360,13 +497,15 @@ export function buildGamepadDialog(
   container: HTMLElement,
   callbacks: GamepadDialogCallbacks,
   hostKeyCallbacks: HostKeyDialogCallbacks,
+  vpadCallbacks: VpadDialogCallbacks,
 ): GamepadDialog {
   const titleEl = el('h2', { class: 'gp-title' }, [t('inputSettingsDialogTitle')]);
   // タブ(ゲームパッド/キーボード)。新しいツールバーボタンは増やさず、既存のゲームパッド設定
   // ダイアログを「入力設定」へ格上げしてタブで切り替える。
   const tabGamepadBtn = el('button', { type: 'button', class: 'gp-tab active' }, [t('inputTabGamepad')]);
   const tabHostkeyBtn = el('button', { type: 'button', class: 'gp-tab' }, [t('inputTabHostkey')]);
-  const tabsRow = el('div', { class: 'gp-tabs' }, [tabGamepadBtn, tabHostkeyBtn]);
+  const tabVpadBtn = el('button', { type: 'button', class: 'gp-tab' }, [t('inputTabVpad')]);
+  const tabsRow = el('div', { class: 'gp-tabs' }, [tabGamepadBtn, tabHostkeyBtn, tabVpadBtn]);
 
   // --- タブ1: ゲームパッド(既存の内容をそのまま移しただけ、挙動は変えない) ---
   const descEl = el('p', { class: 'gp-desc' }, [t('gamepadDialogDescription')]);
@@ -401,6 +540,8 @@ export function buildGamepadDialog(
   const hkRenameBtn = el('button', { type: 'button', class: 'gp-preset-btn' }, [t('hostkeyRenameProfileBtn')]);
   const hkDeleteBtn = el('button', { type: 'button', class: 'gp-clear-btn' }, [t('hostkeyDeleteProfileBtn')]);
   const hkProfileActionsRow = el('div', { class: 'gp-preset-row' }, [hkNewBtn, hkDupBtn, hkRenameBtn, hkDeleteBtn]);
+  const hkProfileEditor = createInlineProfileEditor();
+  hkProfileEditor.applyStrings();
   const hkReadonlyNoteEl = el('div', { class: 'gp-hint hidden' }, [t('hostkeyBuiltinReadonlyNote')]);
 
   const hkBindTableEl = el('div', { class: 'gp-bind-table' });
@@ -417,12 +558,29 @@ export function buildGamepadDialog(
     hkEnableRow,
     hkProfileRow,
     hkProfileActionsRow,
+    hkProfileEditor.element,
     hkReadonlyNoteEl,
     hkBindTableEl,
     hkAddRow,
     hkPendingHintEl,
     hkCancelPendingBtn,
   ]);
+
+  // --- タブ3: バーチャルパッド。下段のPC-98キーピッカーは既存2タブと同じインスタンスを共用する。 ---
+  const vpDescEl = el('p', { class: 'gp-desc' }, [t('vpadDialogDescription')]);
+  const vpProfileSelect = el('select', { class: 'gp-edit-pad-input', id: 'gp-vpad-profile' });
+  const vpProfileLabel = el('label', { for: 'gp-vpad-profile' }, [t('vpadProfileLabel')]);
+  const vpProfileRow = el('div', { class: 'gp-edit-pad-row' }, [vpProfileLabel, vpProfileSelect]);
+  const vpNewBtn = el('button', { type: 'button', class: 'gp-preset-btn' }, [t('vpadNewProfileBtn')]);
+  const vpDuplicateBtn = el('button', { type: 'button', class: 'gp-preset-btn' }, [t('vpadDuplicateProfileBtn')]);
+  const vpRenameBtn = el('button', { type: 'button', class: 'gp-preset-btn' }, [t('vpadRenameProfileBtn')]);
+  const vpDeleteBtn = el('button', { type: 'button', class: 'gp-clear-btn' }, [t('vpadDeleteProfileBtn')]);
+  const vpActions = el('div', { class: 'gp-preset-row' }, [vpNewBtn, vpDuplicateBtn, vpRenameBtn, vpDeleteBtn]);
+  const vpProfileEditor = createInlineProfileEditor();
+  vpProfileEditor.applyStrings();
+  const vpReadonly = el('div', { class: 'gp-hint hidden' }, [t('vpadBuiltinReadonlyNote')]);
+  const vpBindings = el('div', { class: 'gp-bind-table' });
+  const vpadPanelEl = el('div', { class: 'gp-tab-panel hidden' }, [vpDescEl, vpProfileRow, vpActions, vpProfileEditor.element, vpReadonly, vpBindings]);
 
   const pickerTitleEl = el('h3', { class: 'rom-modal-section-title gp-picker-title' }, [t('gamepadKeyPickerTitle')]);
   // ピッカーが押しても意味の無い状態(無効)のとき、その理由と次にすべき操作をピッカーのすぐ上に
@@ -436,6 +594,7 @@ export function buildGamepadDialog(
     tabsRow,
     gamepadPanelEl,
     hostkeyPanelEl,
+    vpadPanelEl,
     pickerTitleEl,
     pickerHintEl,
     pickerPanelEl,
@@ -483,23 +642,66 @@ export function buildGamepadDialog(
   let pendingPickHintEl: HTMLElement | null = null;
 
   // --- タブ切替・ホストキー再割り当てタブの状態 ---
-  let activeTab: 'gamepad' | 'hostkey' = 'gamepad';
+  let activeTab: InputSettingsTab = 'gamepad';
   // 物理キー検出中に window(capture段)へ張る一時リスナ。SDL2と同じcapture段で先取りするため、
   // ここで検出したキーはコアへは届かない(main.ts側の実インターセプトとは別物、UI専用)。
   let hostKeyDetectListener: ((e: KeyboardEvent) => void) | null = null;
   // 物理キーを検出し終えて、下のPC-98キーボードピッカーで割り当て先を選ぶ番になっている状態。
   let hostKeyPendingCode: string | null = null;
+  let vpadSelectedSource: string | null = null;
 
-  function switchTab(tab: 'gamepad' | 'hostkey'): void {
+  function switchTab(tab: InputSettingsTab): void {
     if (activeTab === tab) return;
     activeTab = tab;
+    hkProfileEditor.close();
+    vpProfileEditor.close();
     tabGamepadBtn.classList.toggle('active', tab === 'gamepad');
     tabHostkeyBtn.classList.toggle('active', tab === 'hostkey');
+    tabVpadBtn.classList.toggle('active', tab === 'vpad');
     gamepadPanelEl.classList.toggle('hidden', tab !== 'gamepad');
     hostkeyPanelEl.classList.toggle('hidden', tab !== 'hostkey');
+    vpadPanelEl.classList.toggle('hidden', tab !== 'vpad');
     cancelHostKeyDetect();
     if (tab === 'gamepad') renderEditor(connectedPads());
-    else renderHostKeyTab();
+    else if (tab === 'hostkey') renderHostKeyTab();
+    else renderVpadTab();
+  }
+
+  const VPAD_SOURCES: ReadonlyArray<{ id: string; label: () => string }> = [
+    { id: 'dpad-up', label: () => t('vpadSourceUp') }, { id: 'dpad-down', label: () => t('vpadSourceDown') },
+    { id: 'dpad-left', label: () => t('vpadSourceLeft') }, { id: 'dpad-right', label: () => t('vpadSourceRight') },
+    ...['a', 'b', 'c', 'd', 'e', 'f'].map((name) => ({ id: `btn-${name}`, label: () => t('vpadSourceButton', { name: name.toUpperCase() }) })),
+    { id: 'btn-opt1', label: () => t('vpadSourceOption', { n: 1 }) }, { id: 'btn-opt2', label: () => t('vpadSourceOption', { n: 2 }) },
+  ];
+
+  function renderVpadTab(): void {
+    const store = vpadCallbacks.getStore();
+    vpProfileSelect.textContent = '';
+    for (const profile of store.profiles) vpProfileSelect.append(new Option(vpadCallbacks.profileLabel(profile.id, profile.label), profile.id));
+    if (store.activeId) vpProfileSelect.value = store.activeId;
+    const profile = store.profiles.find((p) => p.id === store.activeId) ?? null;
+    const editable = profile !== null && !profile.builtin;
+    vpDuplicateBtn.disabled = profile === null;
+    vpRenameBtn.disabled = !editable; vpDeleteBtn.disabled = !editable;
+    vpReadonly.classList.toggle('hidden', profile?.builtin !== true);
+    vpBindings.textContent = '';
+    for (const source of VPAD_SOURCES) {
+      const binding = profile?.bindings[source.id];
+      const row = el('div', { class: vpadSelectedSource === source.id ? 'gp-bind-row selected' : 'gp-bind-row' });
+      const main = el('div', { class: 'gp-bind-row-main' }, [
+        el('span', { class: 'gp-bind-source' }, [source.label()]), el('span', { class: 'gp-bind-arrow' }, ['→']),
+        el('span', { class: 'gp-bind-key' }, [binding ? textLabelForKeyCode(binding.code) : t('vpadUnassigned')]),
+      ]);
+      main.addEventListener('click', () => { vpadSelectedSource = vpadSelectedSource === source.id ? null : source.id; renderVpadTab(); });
+      row.append(main);
+      if (editable && binding) {
+        const clear = el('button', { type: 'button', class: 'gp-clear-btn' }, [t('vpadClearBindingBtn')]);
+        clear.addEventListener('click', () => { vpadCallbacks.clearBinding(profile.id, source.id); renderVpadTab(); });
+        row.append(clear);
+      }
+      vpBindings.append(row);
+    }
+    if (activeTab === 'vpad') setPickerActive(vpadPickerAvailability({ hasEditableProfile: editable, hasSelectedSource: vpadSelectedSource !== null }));
   }
 
   /** 物理キー検出待ちを開始する(ホストキー再割り当てタブの[追加])。 */
@@ -967,6 +1169,8 @@ export function buildGamepadDialog(
     if (key !== lastEditorKey) {
       lastEditorKey = key;
       renderEditor(pads);
+      if (activeTab === 'hostkey') renderHostKeyTab();
+      if (activeTab === 'vpad') renderVpadTab();
     }
   }
 
@@ -977,6 +1181,8 @@ export function buildGamepadDialog(
 
   function close(): void {
     backdrop.classList.add('hidden');
+    hkProfileEditor.close();
+    vpProfileEditor.close();
     applyFlow(IDLE_DETECT_FLOW_STATE);
     selectedRowKey = null;
     cancelHostKeyDetect();
@@ -990,6 +1196,15 @@ export function buildGamepadDialog(
   // タブ2(ホストキー再割り当て)のキー選択待ち中はそちらへ振り分ける(タブ1と同じピッカーを共用)。
   for (const { def, button } of pickerButtons) {
     button.addEventListener('click', () => {
+      if (activeTab === 'vpad' && vpadSelectedSource !== null) {
+        const store = vpadCallbacks.getStore();
+        const profile = store.profiles.find((p) => p.id === store.activeId);
+        if (profile && !profile.builtin) vpadCallbacks.setBinding(profile.id, vpadSelectedSource, def.code);
+        const index = VPAD_SOURCES.findIndex((source) => source.id === vpadSelectedSource);
+        vpadSelectedSource = VPAD_SOURCES[index + 1]?.id ?? null;
+        renderVpadTab();
+        return;
+      }
       if (activeTab === 'hostkey' && hostKeyPendingCode !== null) {
         const store = hostKeyCallbacks.getStore();
         if (store.activeId !== null) hostKeyCallbacks.setBinding(store.activeId, hostKeyPendingCode, def.code);
@@ -1005,51 +1220,103 @@ export function buildGamepadDialog(
 
   tabGamepadBtn.addEventListener('click', () => switchTab('gamepad'));
   tabHostkeyBtn.addEventListener('click', () => switchTab('hostkey'));
+  tabVpadBtn.addEventListener('click', () => switchTab('vpad'));
+
+  vpProfileSelect.addEventListener('change', () => {
+    vpProfileEditor.close();
+    vpadSelectedSource = null;
+    vpadCallbacks.setActiveProfile(vpProfileSelect.value);
+    renderVpadTab();
+  });
+  vpNewBtn.addEventListener('click', () => {
+    vpProfileEditor.open({
+      title: () => t('vpadNewProfilePrompt'),
+      onAccepted: (name) => { vpadCallbacks.createProfile(name); vpadSelectedSource = null; renderVpadTab(); },
+    });
+  });
+  vpDuplicateBtn.addEventListener('click', () => {
+    const store = vpadCallbacks.getStore();
+    const profile = store.profiles.find((p) => p.id === store.activeId); if (!profile) return;
+    const displayName = vpadCallbacks.profileLabel(profile.id, profile.label);
+    vpProfileEditor.open({
+      title: () => t('vpadDuplicateProfilePrompt'),
+      initial: t('vpadDuplicateDefaultName', { name: displayName }),
+      onAccepted: (name) => { vpadCallbacks.duplicateProfile(profile.id, name); vpadSelectedSource = null; renderVpadTab(); },
+    });
+  });
+  vpRenameBtn.addEventListener('click', () => {
+    const store = vpadCallbacks.getStore(); const profile = store.profiles.find((p) => p.id === store.activeId);
+    if (!profile || profile.builtin) return;
+    vpProfileEditor.open({
+      title: () => t('vpadRenameProfilePrompt'), initial: profile.label,
+      onAccepted: (name) => { vpadCallbacks.renameProfile(profile.id, name); renderVpadTab(); },
+    });
+  });
+  vpDeleteBtn.addEventListener('click', () => {
+    const store = vpadCallbacks.getStore(); const profile = store.profiles.find((p) => p.id === store.activeId);
+    if (!profile || profile.builtin) return;
+    vpProfileEditor.open({
+      title: () => t('vpadDeleteProfileConfirm', { name: profile.label }), confirmOnly: true,
+      onAccepted: () => { vpadCallbacks.deleteProfile(profile.id); vpadSelectedSource = null; renderVpadTab(); },
+    });
+  });
 
   hkEnableCheckbox.addEventListener('change', () => {
     hostKeyCallbacks.setEnabled(hkEnableCheckbox.checked);
     renderHostKeyTab();
   });
   hkProfileSelect.addEventListener('change', () => {
+    hkProfileEditor.close();
     cancelHostKeyDetect();
     hostKeyCallbacks.setActiveProfile(hkProfileSelect.value || null);
     renderHostKeyTab();
   });
   hkNewBtn.addEventListener('click', () => {
-    const label = prompt(t('hostkeyNewProfilePrompt'));
-    if (!label) return;
-    const id = hostKeyCallbacks.createProfile(label);
-    hostKeyCallbacks.setActiveProfile(id);
-    renderHostKeyTab();
+    hkProfileEditor.open({
+      title: () => t('hostkeyNewProfilePrompt'),
+      onAccepted: (name) => {
+        const id = hostKeyCallbacks.createProfile(name);
+        hostKeyCallbacks.setActiveProfile(id);
+        renderHostKeyTab();
+      },
+    });
   });
   hkDupBtn.addEventListener('click', () => {
     const store = hostKeyCallbacks.getStore();
     const active = store.activeId !== null ? (store.profiles.find((p) => p.id === store.activeId) ?? null) : null;
     if (!active) return;
     const sourceLabelText = hostKeyProfileDisplayLabel(active);
-    const label = prompt(t('hostkeyDuplicateProfilePrompt', { name: sourceLabelText }), `${sourceLabelText} copy`);
-    if (!label) return;
-    const id = hostKeyCallbacks.duplicateProfile(active.id, label);
-    if (id) hostKeyCallbacks.setActiveProfile(id);
-    renderHostKeyTab();
+    hkProfileEditor.open({
+      title: () => t('hostkeyDuplicateProfilePrompt', { name: sourceLabelText }),
+      initial: t('hostkeyDuplicateDefaultName', { name: sourceLabelText }),
+      onAccepted: (name) => {
+        const id = hostKeyCallbacks.duplicateProfile(active.id, name);
+        if (id) hostKeyCallbacks.setActiveProfile(id);
+        renderHostKeyTab();
+      },
+    });
   });
   hkRenameBtn.addEventListener('click', () => {
     const store = hostKeyCallbacks.getStore();
     const active = store.activeId !== null ? (store.profiles.find((p) => p.id === store.activeId) ?? null) : null;
     if (!active || active.builtin) return;
-    const label = prompt(t('hostkeyRenameProfilePrompt'), active.label);
-    if (!label) return;
-    hostKeyCallbacks.renameProfile(active.id, label);
-    renderHostKeyTab();
+    hkProfileEditor.open({
+      title: () => t('hostkeyRenameProfilePrompt'), initial: active.label,
+      onAccepted: (name) => { hostKeyCallbacks.renameProfile(active.id, name); renderHostKeyTab(); },
+    });
   });
   hkDeleteBtn.addEventListener('click', () => {
     const store = hostKeyCallbacks.getStore();
     const active = store.activeId !== null ? (store.profiles.find((p) => p.id === store.activeId) ?? null) : null;
     if (!active || active.builtin) return;
-    if (!confirm(t('hostkeyDeleteProfileConfirm', { name: hostKeyProfileDisplayLabel(active) }))) return;
-    hostKeyCallbacks.deleteProfile(active.id);
-    if (hostKeyCallbacks.getStore().activeId === null) hostKeyCallbacks.setActiveProfile(BUILTIN_TENKEY_ARROWS_ID);
-    renderHostKeyTab();
+    hkProfileEditor.open({
+      title: () => t('hostkeyDeleteProfileConfirm', { name: hostKeyProfileDisplayLabel(active) }), confirmOnly: true,
+      onAccepted: () => {
+        hostKeyCallbacks.deleteProfile(active.id);
+        if (hostKeyCallbacks.getStore().activeId === null) hostKeyCallbacks.setActiveProfile(BUILTIN_TENKEY_ARROWS_ID);
+        renderHostKeyTab();
+      },
+    });
   });
   hkAddBtn.addEventListener('click', () => {
     if (hostKeyDetectListener !== null) cancelHostKeyDetect();
@@ -1083,11 +1350,13 @@ export function buildGamepadDialog(
     close();
   });
 
-  function open(): void {
+  function open(tab?: InputSettingsTab): void {
+    if (tab !== undefined) switchTab(tab);
     backdrop.classList.remove('hidden');
     lastEditorKey = '__force__'; // 開くたびにパッド選択・編集表を作り直す。
     render();
     renderHostKeyTab();
+    renderVpadTab();
     if (rafId === null) rafId = requestAnimationFrame(tick);
   }
 
@@ -1097,6 +1366,7 @@ export function buildGamepadDialog(
       titleEl.textContent = t('inputSettingsDialogTitle');
       tabGamepadBtn.textContent = t('inputTabGamepad');
       tabHostkeyBtn.textContent = t('inputTabHostkey');
+      tabVpadBtn.textContent = t('inputTabVpad');
       descEl.textContent = t('gamepadDialogDescription');
       listTitleEl.textContent = t('gamepadConnectedTitle');
       editorTitleEl.textContent = t('gamepadBindingsTitle');
@@ -1112,10 +1382,20 @@ export function buildGamepadDialog(
       hkReadonlyNoteEl.textContent = t('hostkeyBuiltinReadonlyNote');
       hkPendingHintEl.textContent = t('hostkeyPendingPickKey');
       hkCancelPendingBtn.textContent = t('hostkeyCancelBtn');
+      vpDescEl.textContent = t('vpadDialogDescription');
+      vpProfileLabel.textContent = t('vpadProfileLabel');
+      vpNewBtn.textContent = t('vpadNewProfileBtn');
+      vpDuplicateBtn.textContent = t('vpadDuplicateProfileBtn');
+      vpRenameBtn.textContent = t('vpadRenameProfileBtn');
+      vpDeleteBtn.textContent = t('vpadDeleteProfileBtn');
+      vpReadonly.textContent = t('vpadBuiltinReadonlyNote');
+      hkProfileEditor.applyStrings();
+      vpProfileEditor.applyStrings();
       if (!backdrop.classList.contains('hidden')) {
         lastEditorKey = '__force__';
         render();
         renderHostKeyTab();
+        renderVpadTab();
       }
     },
   };

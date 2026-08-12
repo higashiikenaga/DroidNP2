@@ -325,6 +325,34 @@ interface Dict {
   inputSettingsDialogTitle(): string;
   inputTabGamepad(): string;
   inputTabHostkey(): string;
+  inputTabVpad(): string;
+  inputPanelSwitchKeyboard(): string;
+  inputPanelSwitchPad(): string;
+  vpadEditAssignmentsMenuItem(): string;
+  vpadDialogDescription(): string;
+  vpadProfileLabel(): string;
+  vpadProfileCursorZx(): string;
+  vpadProfileTenkey(): string;
+  vpadNewProfileBtn(): string;
+  vpadNewProfilePrompt(): string;
+  vpadDuplicateProfileBtn(): string;
+  vpadDuplicateProfilePrompt(): string;
+  vpadDuplicateDefaultName(args: { name: string }): string;
+  vpadRenameProfileBtn(): string;
+  vpadRenameProfilePrompt(): string;
+  vpadDeleteProfileBtn(): string;
+  vpadDeleteProfileConfirm(args: { name: string }): string;
+  vpadBuiltinReadonlyNote(): string;
+  vpadSourceUp(): string;
+  vpadSourceDown(): string;
+  vpadSourceLeft(): string;
+  vpadSourceRight(): string;
+  vpadSourceButton(args: { name: string }): string;
+  vpadSourceOption(args: { n: number }): string;
+  vpadUnassigned(): string;
+  vpadClearBindingBtn(): string;
+  vpadPickerIdleHint(): string;
+  vpadPendingPickKey(): string;
 
   // --- ホストキー再割り当て ---
   hostkeyDialogDescription(): string;
@@ -337,10 +365,15 @@ interface Dict {
   hostkeyNewProfilePrompt(): string;
   hostkeyDuplicateProfileBtn(): string;
   hostkeyDuplicateProfilePrompt(args: { name: string }): string;
+  hostkeyDuplicateDefaultName(args: { name: string }): string;
   hostkeyRenameProfileBtn(): string;
   hostkeyRenameProfilePrompt(): string;
   hostkeyDeleteProfileBtn(): string;
   hostkeyDeleteProfileConfirm(args: { name: string }): string;
+  profileNameInputLabel(): string;
+  profileNameOk(): string;
+  profileNameCancel(): string;
+  profileNameRequired(): string;
   /** 組み込みプロファイルは読み取り専用であることの案内(編集・削除ボタンの近くに出す)。 */
   hostkeyBuiltinReadonlyNote(): string;
   hostkeyBindingsEmpty(): string;
@@ -627,6 +660,31 @@ const STRINGS: Record<Lang, Dict> = {
     inputSettingsDialogTitle: () => '入力設定',
     inputTabGamepad: () => 'ゲームパッド',
     inputTabHostkey: () => 'キーボード',
+    inputTabVpad: () => 'バーチャルパッド',
+    inputPanelSwitchKeyboard: () => '仮想キーボードに切替',
+    inputPanelSwitchPad: () => 'バーチャルパッドに切替',
+    vpadEditAssignmentsMenuItem: () => '割当を編集',
+    vpadDialogDescription: () => '画面上の方向パッドと各ボタンへPC-98キーを割り当てます。組み込み設定は複製して編集してください。',
+    vpadProfileLabel: () => 'プロファイル',
+    vpadProfileCursorZx: () => 'カーソルキー + Z/X',
+    vpadProfileTenkey: () => 'テンキー + Z/X',
+    vpadNewProfileBtn: () => '新規',
+    vpadNewProfilePrompt: () => '新しいプロファイル名を入力してください:',
+    vpadDuplicateProfileBtn: () => '複製',
+    vpadDuplicateProfilePrompt: () => '複製後のプロファイル名を入力してください:',
+    vpadDuplicateDefaultName: ({ name }) => `${name} のコピー`,
+    vpadRenameProfileBtn: () => 'リネーム',
+    vpadRenameProfilePrompt: () => '新しいプロファイル名を入力してください:',
+    vpadDeleteProfileBtn: () => '削除',
+    vpadDeleteProfileConfirm: ({ name }) => `プロファイル「${name}」を削除します。よろしいですか？`,
+    vpadBuiltinReadonlyNote: () => '組み込みプロファイルは編集・削除できません。複製すると編集できます。',
+    vpadSourceUp: () => '方向 上', vpadSourceDown: () => '方向 下', vpadSourceLeft: () => '方向 左', vpadSourceRight: () => '方向 右',
+    vpadSourceButton: ({ name }) => `ボタン ${name}`,
+    vpadSourceOption: ({ n }) => `補助ボタン ${n}`,
+    vpadUnassigned: () => '(未設定)',
+    vpadClearBindingBtn: () => 'クリア',
+    vpadPickerIdleHint: () => '編集可能なプロファイルの割当行を選択してください。',
+    vpadPendingPickKey: () => '選択中の行へ割り当てるPC-98キーを下から選んでください。',
     hostkeyDialogDescription: () =>
       'ホストPC(実機)のキーをPC-98の任意のキーへ再割り当てします。テンキーの無いノートPC等で、テンキー専用の操作をカーソルキー等から行えるようにするための機能です。',
     hostkeyEnableLabel: () => 'キー再割り当てを有効化',
@@ -636,10 +694,15 @@ const STRINGS: Record<Lang, Dict> = {
     hostkeyNewProfilePrompt: () => '新しいプロファイル名を入力してください:',
     hostkeyDuplicateProfileBtn: () => '複製',
     hostkeyDuplicateProfilePrompt: ({ name }) => `「${name}」を複製します。複製後のプロファイル名を入力してください:`,
+    hostkeyDuplicateDefaultName: ({ name }) => `${name} のコピー`,
     hostkeyRenameProfileBtn: () => 'リネーム',
     hostkeyRenameProfilePrompt: () => '新しいプロファイル名を入力してください:',
     hostkeyDeleteProfileBtn: () => '削除',
     hostkeyDeleteProfileConfirm: ({ name }) => `プロファイル「${name}」を削除します。よろしいですか？`,
+    profileNameInputLabel: () => 'プロファイル名',
+    profileNameOk: () => 'OK',
+    profileNameCancel: () => 'キャンセル',
+    profileNameRequired: () => '空白以外の名前を入力してください。',
     hostkeyBuiltinReadonlyNote: () => '組み込みプロファイルは編集・削除できません(複製してから編集してください)。',
     hostkeyBindingsEmpty: () => '割当はまだありません。下の[追加]から割り当ててください。',
     hostkeyAddBtn: () => '追加',
@@ -920,6 +983,31 @@ const STRINGS: Record<Lang, Dict> = {
     inputSettingsDialogTitle: () => 'Input Settings',
     inputTabGamepad: () => 'Gamepad',
     inputTabHostkey: () => 'Keyboard',
+    inputTabVpad: () => 'Virtual Pad',
+    inputPanelSwitchKeyboard: () => 'Switch to virtual keyboard',
+    inputPanelSwitchPad: () => 'Switch to virtual pad',
+    vpadEditAssignmentsMenuItem: () => 'Edit assignments',
+    vpadDialogDescription: () => 'Assign PC-98 keys to the on-screen direction pad and buttons. Duplicate a built-in profile to edit it.',
+    vpadProfileLabel: () => 'Profile',
+    vpadProfileCursorZx: () => 'Cursor Keys + Z/X',
+    vpadProfileTenkey: () => 'Tenkey + Z/X',
+    vpadNewProfileBtn: () => 'New',
+    vpadNewProfilePrompt: () => 'Enter a name for the new profile:',
+    vpadDuplicateProfileBtn: () => 'Duplicate',
+    vpadDuplicateProfilePrompt: () => 'Enter a name for the duplicated profile:',
+    vpadDuplicateDefaultName: ({ name }) => `${name} copy`,
+    vpadRenameProfileBtn: () => 'Rename',
+    vpadRenameProfilePrompt: () => 'Enter a new profile name:',
+    vpadDeleteProfileBtn: () => 'Delete',
+    vpadDeleteProfileConfirm: ({ name }) => `Delete profile "${name}"?`,
+    vpadBuiltinReadonlyNote: () => 'Built-in profiles cannot be edited or deleted. Duplicate one to edit it.',
+    vpadSourceUp: () => 'Direction Up', vpadSourceDown: () => 'Direction Down', vpadSourceLeft: () => 'Direction Left', vpadSourceRight: () => 'Direction Right',
+    vpadSourceButton: ({ name }) => `Button ${name}`,
+    vpadSourceOption: ({ n }) => `Option ${n}`,
+    vpadUnassigned: () => '(unset)',
+    vpadClearBindingBtn: () => 'Clear',
+    vpadPickerIdleHint: () => 'Select a binding row in an editable profile.',
+    vpadPendingPickKey: () => 'Pick the PC-98 key to assign to the selected row below.',
     hostkeyDialogDescription: () =>
       'Remap physical keys on your host PC to any PC-98 key. Useful on laptops without a numeric keypad, so tenkey-only controls can be driven from e.g. the arrow keys.',
     hostkeyEnableLabel: () => 'Enable key remapping',
@@ -929,10 +1017,15 @@ const STRINGS: Record<Lang, Dict> = {
     hostkeyNewProfilePrompt: () => 'Enter a name for the new profile:',
     hostkeyDuplicateProfileBtn: () => 'Duplicate',
     hostkeyDuplicateProfilePrompt: ({ name }) => `Duplicating "${name}". Enter a name for the copy:`,
+    hostkeyDuplicateDefaultName: ({ name }) => `${name} copy`,
     hostkeyRenameProfileBtn: () => 'Rename',
     hostkeyRenameProfilePrompt: () => 'Enter a new name for the profile:',
     hostkeyDeleteProfileBtn: () => 'Delete',
     hostkeyDeleteProfileConfirm: ({ name }) => `Delete profile "${name}"? This cannot be undone.`,
+    profileNameInputLabel: () => 'Profile name',
+    profileNameOk: () => 'OK',
+    profileNameCancel: () => 'Cancel',
+    profileNameRequired: () => 'Enter a name containing non-whitespace characters.',
     hostkeyBuiltinReadonlyNote: () => 'Built-in profiles cannot be edited or deleted (duplicate it first).',
     hostkeyBindingsEmpty: () => 'No bindings yet. Use [Add] below to add one.',
     hostkeyAddBtn: () => 'Add',

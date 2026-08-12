@@ -3,12 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#101010" />
     <link rel="icon" type="image/png" href="./np2icon.png" />
     <link rel="apple-touch-icon" href="./np2icon.png" />
     <title>WebNP2 とは</title>
     <style>
       :root {
         color-scheme: light;
+        --page-bg: #101010;
         --bg: #fafafa;
         --bg-panel: #ffffff;
         --border: #d5d5d5;
@@ -20,13 +22,15 @@
         --header-bg: #0c0c0c;
         --header-text: #f2f2f2;
         --header-tagline-text: #a8a8a8;
-        --page-footer-bg: #ececec;
-        --page-footer-text: #6b6b6b;
-        --page-footer-border: rgba(0, 0, 0, 0.12);
+        --page-footer-bg: #1a1a1a;
+        --page-footer-text: #8c8c8c;
+        --page-footer-border: rgba(255, 255, 255, 0.1);
         --footer-btn-bg: #4a4a4a;
         --footer-btn-border: #202020;
         --footer-text: #e6e6e6;
         --code-bg: #f1f1f1;
+        --note-bg: #fff7e6;
+        --note-border: #e6c46a;
       }
 
       * {
@@ -35,12 +39,13 @@
 
       html {
         height: 100%;
+        background: var(--page-bg);
       }
 
       body {
         margin: 0;
         padding: 0;
-        background: var(--bg);
+        background: var(--page-bg);
         color: var(--text);
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif;
         min-height: 100%;
@@ -157,8 +162,8 @@
       }
 
       .note-box {
-        background: #fff7e6;
-        border: 1px solid #e6c46a;
+        background: var(--note-bg);
+        border: 1px solid var(--note-border);
         border-radius: 6px;
         padding: 10px 14px;
         font-size: 13px;
