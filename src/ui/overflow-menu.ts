@@ -7,9 +7,7 @@
 
 /**
  * ツールバーの操作の識別子。player.ts側の各icon-btn(btnMachineReset等)と1対1で対応する。
- * ここに挙げるのは「グループ分けの対象になる操作」のみで、使い方(help)・言語切替(lang)は
- * タスク上の要件で常時表示のまま据え置くため対象外(グループ判定ロジックのテスト範囲を、
- * 実際にグループ分けが必要な操作だけに絞るため)。
+ * 言語切替だけは常時表示のテキストボタンで、この一覧の対象外。
  */
 export type ToolbarActionId =
   | 'machineReset'
@@ -26,34 +24,47 @@ export type ToolbarActionId =
   | 'romManager'
   | 'diskLibrary'
   | 'fileManager'
-  | 'debuggerOpen';
+  | 'debuggerOpen'
+  | 'help'
+  | 'language';
+
+/** UIに存在する全操作の独立した基準。分類から項目が脱落していないかテストするために使う。 */
+export const TOOLBAR_ACTIONS: readonly ToolbarActionId[] = [
+  'machineReset', 'saveState', 'loadState', 'screenshot', 'fullscreen', 'virtualKbd', 'gamepad',
+  'mouseCapture', 'mouseResync', 'resetOriginal', 'pasteText', 'romManager', 'diskLibrary',
+  'fileManager', 'debuggerOpen', 'help', 'language',
+];
 
 /** 常時ツールバーに残す操作(使用頻度が高い/常に押せる必要があるもの)。 */
 export const ALWAYS_VISIBLE_ACTIONS: readonly ToolbarActionId[] = [
   'machineReset',
-  'saveState',
-  'loadState',
-  'screenshot',
   'fullscreen',
   'virtualKbd',
-  'gamepad',
+  'screenshot',
 ];
 
-export type OverflowGroupId = 'mouse' | 'tools';
+export type OverflowGroupId = 'input' | 'disk' | 'state';
 
 /** オーバーフローメニュー第1階層(グループ一覧)に出す順序。 */
-export const OVERFLOW_GROUP_ORDER: readonly OverflowGroupId[] = ['mouse', 'tools'];
+// WebNP2には4:3表示のような表示モードがまだ無いためdisplayは設けない。
+// 将来、表示系機能が追加された時点でWebX68kと同じdisplayグループを復活させる。
+export const OVERFLOW_GROUP_ORDER: readonly OverflowGroupId[] = ['input', 'disk', 'state'];
 
 /** グループ→所属操作(第2階層に出す順序)。 */
 export const OVERFLOW_GROUPS: Record<OverflowGroupId, readonly ToolbarActionId[]> = {
-  mouse: ['mouseCapture', 'mouseResync', 'resetOriginal'],
-  tools: ['pasteText', 'romManager', 'diskLibrary', 'fileManager', 'debuggerOpen'],
+  input: ['mouseCapture', 'mouseResync', 'gamepad', 'pasteText'],
+  disk: ['diskLibrary', 'fileManager'],
+  state: ['saveState', 'loadState', 'resetOriginal'],
 };
+
+/** 3分類へ無理に押し込まず、第1階層へ直接並べる操作(WebX68kの設定・ヘルプ等と同じ扱い)。 */
+export const OVERFLOW_DIRECT_ACTIONS: readonly ToolbarActionId[] = ['romManager', 'debuggerOpen', 'help', 'language'];
 
 /** 常時表示+オーバーフロー全体の操作一覧。重複/抜け漏れが無いことをテストで検査する基準に使う。 */
 export const ALL_TOOLBAR_ACTIONS: readonly ToolbarActionId[] = [
   ...ALWAYS_VISIBLE_ACTIONS,
   ...OVERFLOW_GROUP_ORDER.flatMap((groupId) => OVERFLOW_GROUPS[groupId]),
+  ...OVERFLOW_DIRECT_ACTIONS,
 ];
 
 /**

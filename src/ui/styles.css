@@ -1059,14 +1059,9 @@ footer.app-footer a {
   white-space: nowrap;
 }
 
-/* フォルダ行はサブメニューへ潜ることを三角で示す */
-.library-menu-item.group .library-menu-label::after {
-  content: ' ▸';
-  color: inherit;
-}
-
 .library-menu-extra {
   flex: 0 0 auto;
+  margin-left: auto;
   font-size: 11px;
   color: var(--text-dim);
 }

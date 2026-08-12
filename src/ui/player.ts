@@ -1,6 +1,6 @@
 // プレイヤーUI (素のDOM構築)。canvas/オーバーレイ/ツールバー/進捗バー/D&D を組み立てる。
 
-import { getLang, setLang, t } from './strings.ts';
+import { getLang, langSelfName, setLang, t } from './strings.ts';
 import type { DiskSlot } from '../api/webnp2.ts';
 import type { RomEntry } from '../api/roms.ts';
 import { buildKbdRows } from './kbd-layout.ts';
@@ -14,6 +14,7 @@ import {
   CLOSED_OVERFLOW_MENU_STATE,
   isWideOverflowMenu,
   type OverflowGroupId,
+  OVERFLOW_DIRECT_ACTIONS,
   OVERFLOW_GROUP_ORDER,
   OVERFLOW_GROUPS,
   overflowMenuHasHeading,
@@ -302,6 +303,8 @@ const ICONS = {
   pasteText: 'M4 5h16v11H8l-4 4V5z M7 9h10 M7 12h6',
   // 丸囲み疑問符＝使い方ページ。
   help: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M9.6 9.2a2.4 2.4 0 1 1 3.3 2.2c-.7.3-.9.8-.9 1.6 M12 16.8h.01',
+  // 地球儀＝言語設定。
+  language: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M3 12h18 M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9 M12 3c-2.5 2.5-3.5 5.5-3.5 9s1 6.5 3.5 9',
   // キーボード風(枠+キー点+スペースバー)＝ソフトキーボード。
   keyboard:
     'M3 7h18a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1z M6 10h.01 M9 10h.01 M12 10h.01 M15 10h.01 M18 10h.01 M6 13h.01 M9 13h.01 M12 13h.01 M15 13h.01 M18 13h.01 M8 16h8',
@@ -478,7 +481,7 @@ export function buildPlayerUI(
   const btnMouseResync = iconButton(ICONS.mouseTrack, t('toolbarMouseResync'));
   const btnReset = iconButton(ICONS.resetOriginal, t('toolbarReset'));
   const btnFullscreen = iconButton(ICONS.fullscreen, t('toolbarFullscreen'));
-  const btnLang = el('button', { type: 'button', class: 'lang-toggle' }, [t('langToggle')]);
+  const btnLang = iconButton(ICONS.language, t('toolbarLanguage'));
   // ROM登録は起動前でも次回起動設定として使うため、setToolbarEnabledの無効化対象にはしない。
   const btnRomManager = iconButton(ICONS.rom, t('toolbarRomManager'));
   // ディスクライブラリも起動前(起動選択)・起動後(FD挿入)どちらでも使うため常に有効。
@@ -500,17 +503,17 @@ export function buildPlayerUI(
   // 使い方ページは起動前でも参照できるよう、setToolbarEnabledの無効化対象にはしない。
   // 通常のリンクとして開けるよう<a>要素にする(新規タブオープンをブラウザ標準の挙動に任せる)。
   const btnHelp = iconLinkButton(ICONS.help, t('toolbarHelp'), `help.html?lang=${getLang()}`);
-  // ツールバー「…」オーバーフローメニュー。アイコンが15個に増え見分けが付きにくくなったため、
+  // ツールバー「…」オーバーフローメニュー。常時表示をWebX68kと同じ考え方の4操作へ絞る。
   // 使用頻度の低いものは overflow-menu.ts のグループ定義に従いこのボタン配下へ畳む
   // (移植元: WebX68k commit 694bd3f)。グループ分けとメニュー本体は下の
   // 「--- ツールバー「…」オーバーフローメニュー ---」ブロックにまとめて実装する。
   const btnToolbarOverflow = iconButton(ICONS.overflow, t('toolbarMore'));
   btnToolbarOverflow.setAttribute('aria-haspopup', 'menu');
 
-  // グループ分け対象の操作(常時表示7個+オーバーフロー8個、overflow-menu.tsのALL_TOOLBAR_ACTIONS)を
+  // グループ分け対象の全操作を
   // 実ボタンへ結び付けるテーブル。常時表示側の並び順もここから作るため、DOM構築とグループ定義が
   // 二重管理にならない。
-  const actionButtons: Record<ToolbarActionId, HTMLButtonElement> = {
+  const actionButtons: Record<ToolbarActionId, HTMLButtonElement | HTMLAnchorElement> = {
     machineReset: btnMachineReset,
     saveState: btnSaveState,
     loadState: btnLoadState,
@@ -526,8 +529,13 @@ export function buildPlayerUI(
     diskLibrary: btnDiskLibrary,
     fileManager: btnFileManager,
     debuggerOpen: btnDebugger,
+    help: btnHelp,
+    language: btnLang,
   };
-  const overflowActionIds = OVERFLOW_GROUP_ORDER.flatMap((groupId) => OVERFLOW_GROUPS[groupId]);
+  const overflowActionIds = [
+    ...OVERFLOW_GROUP_ORDER.flatMap((groupId) => OVERFLOW_GROUPS[groupId]),
+    ...OVERFLOW_DIRECT_ACTIONS,
+  ];
 
   // 入力パネル切替は、配置方式(panel/sides/overlay)に左右されないツールバーへ置く。
   // 仮想キーボードボタンの直後へ明示的に差し込み、操作同士の隣接関係を保つ。
@@ -536,8 +544,6 @@ export function buildPlayerUI(
   );
   const toolbar = el('div', { class: 'toolbar' }, [
     ...alwaysVisibleButtons,
-    btnHelp,
-    btnLang,
     btnToolbarOverflow,
   ]);
   // オーバーフローへ移した操作の実体ボタン(非表示)。クリックハンドラは従来通りそれぞれの
@@ -1509,9 +1515,19 @@ export function buildPlayerUI(
   overflowSubmenu.tabIndex = -1;
 
   const OVERFLOW_GROUP_LABEL: Record<OverflowGroupId, () => string> = {
-    mouse: () => t('toolbarGroupMouse'),
-    tools: () => t('toolbarGroupTools'),
+    input: () => t('toolbarGroupInput'),
+    disk: () => t('toolbarGroupDisk'),
+    state: () => t('toolbarGroupState'),
   };
+
+  // ボタン実体のtitleとは異なるメニュー用ラベル・右端の設定値を差し替える。
+  // 今後トグル設定が増えてもoverflowActionRow()へ個別分岐を足さず、この表へ追加する。
+  const OVERFLOW_MENU_LABEL_OVERRIDES = new Map<HTMLElement, () => string>([
+    [btnLang, () => t('toolbarLanguage')],
+  ]);
+  const OVERFLOW_MENU_EXTRA_OVERRIDES = new Map<HTMLElement, () => string>([
+    [btnLang, () => langSelfName(getLang())],
+  ]);
 
   let overflowMenuState: OverflowMenuState = CLOSED_OVERFLOW_MENU_STATE;
 
@@ -1527,12 +1543,15 @@ export function buildPlayerUI(
   function overflowActionRow(id: ToolbarActionId): HTMLElement {
     const btn = actionButtons[id];
     const icon = btn.querySelector<SVGElement>('svg');
-    const row = menuRow(btn.title, undefined, '', {
+    const disabled = btn instanceof HTMLButtonElement && btn.disabled;
+    const label = OVERFLOW_MENU_LABEL_OVERRIDES.get(btn)?.() ?? btn.title;
+    const extra = OVERFLOW_MENU_EXTRA_OVERRIDES.get(btn)?.();
+    const row = menuRow(label, extra, '', {
       icon,
       iconSlot: true,
-      disabled: btn.disabled,
+      disabled,
     });
-    if (!btn.disabled) {
+    if (!disabled) {
       onActivate(row, () => {
         closeOverflowMenu();
         btn.click();
@@ -1613,7 +1632,9 @@ export function buildPlayerUI(
     }
     const wide = isWideOverflowMenu(window.innerWidth);
     for (const groupId of OVERFLOW_GROUP_ORDER) {
-      const row = menuRow(OVERFLOW_GROUP_LABEL[groupId](), undefined, 'group', { iconSlot: true });
+      // 既存のlibrary-menu-extra（プロファイルのチェック表示と共用）へ記号を渡し、
+      // 長いラベルは省略しつつ記号を行の右端へ固定する。
+      const row = menuRow(OVERFLOW_GROUP_LABEL[groupId](), '▸', 'group', { iconSlot: true });
       onActivate(row, () => {
         overflowMenuState = selectOverflowGroup(groupId, wide);
         if (wide) renderOverflowCascade(row, groupId);
@@ -1621,6 +1642,7 @@ export function buildPlayerUI(
       });
       overflowMenu.append(row);
     }
+    for (const id of OVERFLOW_DIRECT_ACTIONS) overflowMenu.append(overflowActionRow(id));
     positionOverflowMenu(btnToolbarOverflow);
     overflowMenu.focus({ preventScroll: true });
   }
@@ -2143,7 +2165,8 @@ export function buildPlayerUI(
       btnHelp.title = t('toolbarHelp');
       btnHelp.setAttribute('aria-label', t('toolbarHelp'));
       btnHelp.href = `help.html?lang=${getLang()}`;
-      btnLang.textContent = t('langToggle');
+      btnLang.title = t('toolbarLanguage');
+      btnLang.setAttribute('aria-label', t('toolbarLanguage'));
       btnToolbarOverflow.title = t('toolbarMore');
       btnToolbarOverflow.setAttribute('aria-label', t('toolbarMore'));
       closeOverflowMenu();

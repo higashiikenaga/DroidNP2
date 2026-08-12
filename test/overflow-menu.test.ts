@@ -7,34 +7,35 @@ import {
   isWideOverflowMenu,
   OVERFLOW_GROUP_ORDER,
   OVERFLOW_GROUPS,
+  OVERFLOW_DIRECT_ACTIONS,
   overflowMenuHasHeading,
   ROOT_OVERFLOW_MENU_STATE,
   selectOverflowGroup,
   toggleOverflowMenu,
+  TOOLBAR_ACTIONS,
   type ToolbarActionId,
 } from '../src/ui/overflow-menu.ts';
 
 describe('グループ定義', () => {
-  it('常時表示は要件通りの7個ちょうど', () => {
+  it('常時表示はWebX68kと同じ考え方の4項目に絞る', () => {
     expect(ALWAYS_VISIBLE_ACTIONS).toEqual([
       'machineReset',
-      'saveState',
-      'loadState',
-      'screenshot',
       'fullscreen',
       'virtualKbd',
-      'gamepad',
+      'screenshot',
     ]);
   });
 
-  it('オーバーフローの2グループが要件通りの内訳', () => {
-    expect(OVERFLOW_GROUP_ORDER).toEqual(['mouse', 'tools']);
-    expect(OVERFLOW_GROUPS.mouse).toEqual(['mouseCapture', 'mouseResync', 'resetOriginal']);
-    expect(OVERFLOW_GROUPS.tools).toEqual(['pasteText', 'romManager', 'diskLibrary', 'fileManager', 'debuggerOpen']);
+  it('オーバーフローはinput/disk/stateの3グループ', () => {
+    expect(OVERFLOW_GROUP_ORDER).toEqual(['input', 'disk', 'state']);
+    expect(OVERFLOW_GROUPS.input).toEqual(['mouseCapture', 'mouseResync', 'gamepad', 'pasteText']);
+    expect(OVERFLOW_GROUPS.disk).toEqual(['diskLibrary', 'fileManager']);
+    expect(OVERFLOW_GROUPS.state).toEqual(['saveState', 'loadState', 'resetOriginal']);
+    expect(OVERFLOW_DIRECT_ACTIONS).toEqual(['romManager', 'debuggerOpen', 'help', 'language']);
   });
 
-  it('常時表示とオーバーフローの間で重複が無い(1つの操作は1箇所にしか属さない)', () => {
-    const overflowIds = OVERFLOW_GROUP_ORDER.flatMap((g) => OVERFLOW_GROUPS[g]);
+  it('常時表示・3グループ・直結行の間で重複が無い', () => {
+    const overflowIds = [...OVERFLOW_GROUP_ORDER.flatMap((g) => OVERFLOW_GROUPS[g]), ...OVERFLOW_DIRECT_ACTIONS];
     const seen = new Set<ToolbarActionId>();
     for (const id of [...ALWAYS_VISIBLE_ACTIONS, ...overflowIds]) {
       expect(seen.has(id)).toBe(false);
@@ -42,8 +43,9 @@ describe('グループ定義', () => {
     }
   });
 
-  it('ALL_TOOLBAR_ACTIONS は常時表示7個+オーバーフロー8個=15個', () => {
-    expect(ALL_TOOLBAR_ACTIONS).toHaveLength(15);
+  it('常時表示とオーバーフローの和がUIの全アクションと一致し、取りこぼしが無い', () => {
+    expect(ALL_TOOLBAR_ACTIONS).toHaveLength(TOOLBAR_ACTIONS.length);
+    expect(new Set(ALL_TOOLBAR_ACTIONS)).toEqual(new Set(TOOLBAR_ACTIONS));
   });
 });
 
@@ -66,16 +68,16 @@ describe('オーバーフローメニューの開閉状態遷移', () => {
 
   it('root/group/cascadeいずれから「…」を押しても閉じる(トグル)', () => {
     expect(toggleOverflowMenu(ROOT_OVERFLOW_MENU_STATE)).toEqual(CLOSED_OVERFLOW_MENU_STATE);
-    expect(toggleOverflowMenu({ level: 'group', group: 'mouse' })).toEqual(CLOSED_OVERFLOW_MENU_STATE);
-    expect(toggleOverflowMenu({ level: 'cascade', group: 'tools' })).toEqual(CLOSED_OVERFLOW_MENU_STATE);
+    expect(toggleOverflowMenu({ level: 'group', group: 'input' })).toEqual(CLOSED_OVERFLOW_MENU_STATE);
+    expect(toggleOverflowMenu({ level: 'cascade', group: 'state' })).toEqual(CLOSED_OVERFLOW_MENU_STATE);
   });
 
   it('広い画面でグループ行を選ぶとcascadeへ遷移し、親は閉じない想定の状態になる', () => {
-    expect(selectOverflowGroup('mouse', true)).toEqual({ level: 'cascade', group: 'mouse' });
+    expect(selectOverflowGroup('input', true)).toEqual({ level: 'cascade', group: 'input' });
   });
 
   it('狭い画面でグループ行を選ぶとgroup(差し替え)へ遷移する', () => {
-    expect(selectOverflowGroup('tools', false)).toEqual({ level: 'group', group: 'tools' });
+    expect(selectOverflowGroup('disk', false)).toEqual({ level: 'group', group: 'disk' });
   });
 
   it('差し替え式の「← 戻る」はrootへ戻る', () => {

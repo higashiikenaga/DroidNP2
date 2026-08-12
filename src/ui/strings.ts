@@ -17,10 +17,9 @@ interface Dict {
   toolbarHelp(): string;
   /** ツールバーの「…」オーバーフローボタンのツールチップ/メニュー見出し。 */
   toolbarMore(): string;
-  /** オーバーフローメニュー内のグループ見出し(マウス関連3つ)。 */
-  toolbarGroupMouse(): string;
-  /** オーバーフローメニュー内のグループ見出し(テキスト送信/ROM/ディスク関連5つ)。 */
-  toolbarGroupTools(): string;
+  toolbarGroupInput(): string;
+  toolbarGroupDisk(): string;
+  toolbarGroupState(): string;
   overlayNote1(): string;
   overlayNote2(): string;
   startBtn(): string;
@@ -41,8 +40,8 @@ interface Dict {
   statusMouseResynced(): string;
   toolbarSaveState(): string;
   toolbarLoadState(): string;
-  /** ツールバーの言語トグルボタンに表示するラベル（＝切替先の言語名）。 */
-  langToggle(): string;
+  /** 「…」メニュー内の言語設定行。 */
+  toolbarLanguage(): string;
   resetConfirm(): string;
   fdSlotLabel(args: { drive: number }): string;
   hddSlotLabel(): string;
@@ -409,8 +408,9 @@ const STRINGS: Record<Lang, Dict> = {
     footerAboutLabel: () => 'WebNP2について',
     toolbarHelp: () => '使い方',
     toolbarMore: () => 'その他',
-    toolbarGroupMouse: () => 'マウス',
-    toolbarGroupTools: () => 'ツール',
+    toolbarGroupInput: () => '入力',
+    toolbarGroupDisk: () => 'ディスク',
+    toolbarGroupState: () => 'ステート',
     overlayNote1: () => '音声再生の制限上、クリック操作で起動します。',
     overlayNote2: () => 'ファイルをドラッグ&ドロップしてHDD/FDイメージを読み込むこともできます。',
     startBtn: () => 'クリックして起動',
@@ -429,7 +429,7 @@ const STRINGS: Record<Lang, Dict> = {
     statusMouseResynced: () => 'マウス位置を再同期しました。',
     toolbarSaveState: () => 'ステート保存',
     toolbarLoadState: () => 'ステート復元',
-    langToggle: () => 'EN',
+    toolbarLanguage: () => '言語',
     resetConfirm: () => '現在の進行状況を破棄し、配布元の初期状態に戻します。よろしいですか？',
     fdSlotLabel: ({ drive }) => `FDD${drive}`,
     hddSlotLabel: () => 'HDD',
@@ -730,8 +730,9 @@ const STRINGS: Record<Lang, Dict> = {
     footerAboutLabel: () => 'About WebNP2',
     toolbarHelp: () => 'Help',
     toolbarMore: () => 'More',
-    toolbarGroupMouse: () => 'Mouse',
-    toolbarGroupTools: () => 'Tools',
+    toolbarGroupInput: () => 'Input',
+    toolbarGroupDisk: () => 'Disk',
+    toolbarGroupState: () => 'State',
     overlayNote1: () => 'Audio requires a user gesture, so click to start.',
     overlayNote2: () => 'You can also drag & drop HDD/FD disk images.',
     startBtn: () => 'Click to Start',
@@ -750,7 +751,7 @@ const STRINGS: Record<Lang, Dict> = {
     statusMouseResynced: () => 'Mouse position resynced.',
     toolbarSaveState: () => 'Save State',
     toolbarLoadState: () => 'Load State',
-    langToggle: () => '日本語',
+    toolbarLanguage: () => 'Language',
     resetConfirm: () =>
       'This will discard your current progress and reset to the original distributed image. Continue?',
     fdSlotLabel: ({ drive }) => `FDD${drive}`,
@@ -1074,6 +1075,11 @@ let currentLang: Lang = resolveLang();
 
 export function getLang(): Lang {
   return currentLang;
+}
+
+/** 設定値として表示する言語名。UI言語に翻訳せず、その言語自身の名前を返す。 */
+export function langSelfName(lang: Lang): string {
+  return lang === 'ja' ? '日本語' : 'English';
 }
 
 export function setLang(lang: Lang): void {
