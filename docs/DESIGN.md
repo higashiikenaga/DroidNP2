@@ -45,7 +45,7 @@ https://.../?hdd=<URL>&fd1=<URL>&fd2=<URL>&clk=<倍率>&run=1
 | パラメータ | 意味 | 備考 |
 |---|---|---|
 | `hdd` | HDDイメージのURL | T98(.thd)等 NP2kai対応形式 |
-| `fd1` `fd2` | FDイメージのURL | .d88/.fdi 等 |
+| `fd1` `fd2` | FDイメージのURL | NP2kai本体(`np2_isfdimage()`)準拠の形式(`.bin`除く)。.d88/.fdi 等 |
 | `state` | (将来) ステートセーブのURL | |
 | `run` | `1`で自動起動 | 無指定時はクリックで起動(音声制限対策) |
 | `clk` | クロック設定 | 省略時デフォルト |

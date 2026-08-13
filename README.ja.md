@@ -81,7 +81,11 @@ Dropboxをお使いください。
 画面領域にファイルをドロップすると拡張子から HDD/FD を自動判別して読み込みます。
 
 - HDD 判定: `.thd` `.hdi` `.nhd` `.hdd`
-- FD 判定: `.d88` `.fdi` `.xdf` `.dup` `.fdd` `.hdm`
+- FD 判定: NP2kai本体([NP2kai/sdl/np2.c](https://github.com/AZO234/NP2kai) の
+  `np2_isfdimage()`)が受け付けるFD形式に準拠(`.d88` `.d98` `.fdi` `.hdm` `.xdf` `.dup`
+  `.2hd` `.nfd` `.fdd` `.hd4` `.hd5` `.hd9` `.h01` `.hdb` `.ddb` `.dd6` `.dd9` `.dcp`
+  `.dcu` `.flp` `.tfd` `.fim` `.img` `.ima`)。ただし `.bin` は汎用的すぎて誤検出しやすい
+  ため対象外としています
 - 圧縮ファイル: `.zip` `.lzh`
 
 複数ファイルを同時にドロップした場合は確認ダイアログを挟みます。

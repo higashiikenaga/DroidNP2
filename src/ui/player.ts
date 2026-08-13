@@ -220,7 +220,38 @@ export interface PlayerUI {
 }
 
 const HDD_EXTENSIONS = ['.thd', '.hdi', '.nhd', '.hdd'];
-const FD_EXTENSIONS = ['.d88', '.fdi', '.xdf', '.dup', '.fdd', '.hdm'];
+// NP2kai本体(NP2kai/sdl/np2.c の np2_isfdimage())が受け付けるFD拡張子に準拠。
+// 実測(2026-08-13): .TFD 2枚入りZIPが「圧縮ファイル内にディスクイメージが見つかりません
+// でした」になった原因はこのリストが本体より狭かったこと。
+// .bin だけは意図的に除外する: 汎用的すぎて、ZIP同梱のROM/その他バイナリを誤ってFDと
+// 判定してしまう(コア本体はコマンドライン単体指定のみを想定しており、ZIP展開時の
+// 誤爆リスクをコアほど許容できない)。
+const FD_EXTENSIONS = [
+  '.d88',
+  '.d98',
+  '.fdi',
+  '.hdm',
+  '.xdf',
+  '.dup',
+  '.2hd',
+  '.nfd',
+  '.fdd',
+  '.hd4',
+  '.hd5',
+  '.hd9',
+  '.h01',
+  '.hdb',
+  '.ddb',
+  '.dd6',
+  '.dd9',
+  '.dcp',
+  '.dcu',
+  '.flp',
+  '.tfd',
+  '.fim',
+  '.img',
+  '.ima',
+];
 const ARCHIVE_EXTENSIONS = ['.zip', '.lzh'];
 /** ファイル選択ダイアログのaccept属性(ディスクイメージ + 圧縮ファイル)。 */
 const FD_INPUT_ACCEPT = [...FD_EXTENSIONS, ...ARCHIVE_EXTENSIONS].join(',');

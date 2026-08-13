@@ -88,7 +88,13 @@ Dropping a file onto the screen area auto-detects whether it's an HDD or FD
 image based on its extension.
 
 - HDD: `.thd` `.hdi` `.nhd` `.hdd`
-- FD: `.d88` `.fdi` `.xdf` `.dup` `.fdd` `.hdm`
+- FD: follows the formats accepted by the NP2kai core itself
+  (`np2_isfdimage()` in
+  [NP2kai/sdl/np2.c](https://github.com/AZO234/NP2kai)): `.d88` `.d98` `.fdi`
+  `.hdm` `.xdf` `.dup` `.2hd` `.nfd` `.fdd` `.hd4` `.hd5` `.hd9` `.h01` `.hdb`
+  `.ddb` `.dd6` `.dd9` `.dcp` `.dcu` `.flp` `.tfd` `.fim` `.img` `.ima` — except
+  `.bin`, which is excluded because it's too generic and prone to false
+  positives
 - Archives: `.zip` `.lzh`
 
 Dropping multiple files at once shows a confirmation dialog.

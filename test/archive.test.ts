@@ -8,7 +8,7 @@ import { deflateRawSync } from 'node:zlib';
 import { existsSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { extractArchive, isArchive } from '../src/api/archive.ts';
+import { baseNameOf, extractArchive, isArchive } from '../src/api/archive.ts';
 import { extractLzh } from '../src/api/lzh.ts';
 import { crc16, crc32 } from '../src/api/archive-util.ts';
 
@@ -324,5 +324,34 @@ describe('ZIPの展開', () => {
     const dataOffset = 30 + new TextEncoder().encode('bad.txt').length;
     corrupted[dataOffset] ^= 0xff;
     await expect(extractArchive('bad.zip', corrupted)).rejects.toThrow(/CRC32/);
+  });
+});
+
+describe('baseNameOf', () => {
+  it('サブフォルダ付きパスからファイル名部分だけを取り出す', () => {
+    expect(baseNameOf('MYDISKS/DISK_A.TFD')).toBe('DISK_A.TFD');
+    expect(baseNameOf('a/b/c/DISK_B.XDF')).toBe('DISK_B.XDF');
+  });
+
+  it('パスを含まない名前はそのまま返す', () => {
+    expect(baseNameOf('DISK_A.TFD')).toBe('DISK_A.TFD');
+  });
+});
+
+describe('ZIP内のサブフォルダ付きディスクイメージ', () => {
+  it('複数ディスクをサブフォルダ付きで同梱していても、各エントリのパスは保持したまま展開される', async () => {
+    // 実測(2026-08-13): 共有ZIPがサブフォルダ付きで複数ディスクを同梱しているケースがあった。
+    // 展開結果のentry.nameはパスを含んだまま返ってくる必要がある(main.tsのsourceKeyが
+    // グループ内で衝突しないようにするため)。表示名/種別判定にはbaseNameOfを介して使う。
+    const diskA = new TextEncoder().encode('disk A bytes');
+    const diskB = new TextEncoder().encode('disk B bytes');
+    const archive = buildZip([
+      { name: 'MYDISKS/DISK_A.TFD', data: diskA, method: 0 },
+      { name: 'MYDISKS/DISK_B.TFD', data: diskB, method: 0 },
+    ]);
+    const entries = await extractArchive('disks.zip', archive);
+    expect(entries.map((e) => e.name)).toEqual(['MYDISKS/DISK_A.TFD', 'MYDISKS/DISK_B.TFD']);
+    // ライブラリ表示名・種別判定に使う側はbasenameへ変換すること。
+    expect(entries.map((e) => baseNameOf(e.name))).toEqual(['DISK_A.TFD', 'DISK_B.TFD']);
   });
 });

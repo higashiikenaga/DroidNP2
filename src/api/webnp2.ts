@@ -1920,7 +1920,35 @@ export class WebNP2 extends TypedEmitter<WebNP2EventMap> {
 }
 
 const HDD_EXTENSIONS = ['.thd', '.hdi', '.nhd', '.hdd'];
-const FD_EXTENSIONS = ['.d88', '.fdi', '.xdf', '.dup', '.fdd', '.hdm'];
+// src/ui/player.ts の FD_EXTENSIONS と同じ一覧(NP2kai本体の np2_isfdimage() 準拠、
+// .bin は誤検出防止のため意図的に除外)。二重管理だが、この判定はMCPブリッジの
+// listDiskLibrary()とHDD書き込みスロットリングにのみ使うため player.ts には依存させない。
+const FD_EXTENSIONS = [
+  '.d88',
+  '.d98',
+  '.fdi',
+  '.hdm',
+  '.xdf',
+  '.dup',
+  '.2hd',
+  '.nfd',
+  '.fdd',
+  '.hd4',
+  '.hd5',
+  '.hd9',
+  '.h01',
+  '.hdb',
+  '.ddb',
+  '.dd6',
+  '.dd9',
+  '.dcp',
+  '.dcu',
+  '.flp',
+  '.tfd',
+  '.fim',
+  '.img',
+  '.ima',
+];
 
 /** ファイル名の拡張子からディスク種別(hdd/fd)を判定する。判定不能ならnull。 */
 function classifyDiskKind(name: string): 'hdd' | 'fd' | null {

@@ -14,6 +14,17 @@ export function isArchive(fileName: string): boolean {
 }
 
 /**
+ * アーカイブ内エントリ名(サブフォルダ付きパスを含みうる)からファイル名部分のみを取り出す。
+ * `フォルダ名/DISK_A.TFD` のようにパスを含むエントリでも、種別判定(classifyDroppedFile)や
+ * ライブラリの表示名にはこの結果(basename)を使う。sourceKeyには元のパスをそのまま使う側なので、
+ * 同一アーカイブ内でフォルダが違う同名ファイルが衝突することはない。
+ */
+export function baseNameOf(path: string): string {
+  const i = path.lastIndexOf('/');
+  return i >= 0 ? path.slice(i + 1) : path;
+}
+
+/**
  * アーカイブ(LZHまたはZIP)を展開し、格納されている各エントリを返す。
  * OS付随のメタデータエントリ(__MACOSX/、._ファイル、.DS_Store等)はここで一括除外する。
  * ZIP/LZHいずれの展開結果も必ずこの関数を経由するため、両形式に等しく効く。
