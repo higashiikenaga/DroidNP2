@@ -119,6 +119,8 @@ interface Dict {
   fetchFailedNeedsProxy(args: { url: string }): string;
   /** 中継サーバ経由の取得が失敗した場合のエラーメッセージ本文(中継側のエラーコードを反映)。 */
   fetchFailedProxy(args: { url: string; reason: string }): string;
+  /** 取得結果がディスクイメージではなくHTML/XMLページだった場合の案内(共有ページURLの誤指定など)。 */
+  fetchFailedHtmlPage(args: { url: string }): string;
   // --- 中継サーバ(VITE_DISK_PROXY)のエラーコード別の理由文言(fetchFailedProxy の reason に渡す) ---
   proxyReasonBadUrl(): string;
   proxyReasonOriginNotAllowed(): string;
@@ -508,6 +510,8 @@ const STRINGS: Record<Lang, Dict> = {
     fetchFailedNeedsProxy: ({ url }) =>
       `イメージの取得に失敗しました: ${url}\nこの配信元は中継サーバ経由でのみ取得できますが、このビルドでは中継(VITE_DISK_PROXY)が設定されていません。自分でホストしている場合は VITE_DISK_PROXY を設定してください(詳細はREADME)。`,
     fetchFailedProxy: ({ url, reason }) => `イメージの取得に失敗しました: ${url}\n${reason}`,
+    fetchFailedHtmlPage: ({ url }) =>
+      `取得結果がディスクイメージではなくWebページでした: ${url}\n共有リンクの公開設定(リンクを知っている全員が閲覧可)を確認するか、ダウンロードしたファイルを画面へドラッグ&ドロップしてください。`,
     proxyReasonBadUrl: () => '中継サーバがURLを解釈できませんでした。',
     proxyReasonOriginNotAllowed: () => '中継サーバがこのサイトからのリクエストを許可していません。',
     proxyReasonHostNotAllowed: () => '中継サーバがこの配信元への転送を許可していません。',
@@ -846,6 +850,8 @@ const STRINGS: Record<Lang, Dict> = {
     fetchFailedNeedsProxy: ({ url }) =>
       `Failed to fetch image: ${url}\nThis source can only be fetched through the relay server, but this build has no relay (VITE_DISK_PROXY) configured. If you're hosting this yourself, set VITE_DISK_PROXY (see the README for details).`,
     fetchFailedProxy: ({ url, reason }) => `Failed to fetch image: ${url}\n${reason}`,
+    fetchFailedHtmlPage: ({ url }) =>
+      `The result was a web page, not a disk image: ${url}\nCheck that the share link is set to "Anyone with the link" can view, or drag & drop the downloaded file onto the page instead.`,
     proxyReasonBadUrl: () => 'The relay server could not parse the URL.',
     proxyReasonOriginNotAllowed: () => 'The relay server does not allow requests from this site.',
     proxyReasonHostNotAllowed: () => 'The relay server does not allow forwarding to this source.',

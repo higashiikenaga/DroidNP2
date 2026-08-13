@@ -8,7 +8,7 @@ import {
   type PlayerUI,
 } from './ui/player.ts';
 import { extractArchive, isArchive, resolveArchiveFileName } from './api/archive.ts';
-import { fetchDiskBytes } from './api/disk-fetch.ts';
+import { fetchDiskBytes, looksLikeHtml } from './api/disk-fetch.ts';
 import { buildLibraryNodes, isLibraryDiskRecord } from './api/library.ts';
 import type { WebNP2, DiskSlot } from './api/webnp2.ts';
 import { createDebugger, createWebNP2, type DebuggerController } from '../packages/embed/src/index.ts';
@@ -285,7 +285,10 @@ async function resolveImage(
 
   const sourceKey = sourceKeyOverride ?? url;
   const stored = await db.get(sourceKey);
-  if (stored) {
+  // 修正前のバグ(Google Driveの共有ページHTMLを誤ってディスクイメージとして保存)を踏んだ
+  // 利用者は、ここで無条件に復帰するとエラー状態が永久に再現し続けてしまう。中身がHTMLに
+  // 見える場合は復帰せず再取得する(2026-08-13 実測確認)。
+  if (stored && !looksLikeHtml(new Uint8Array(stored.bytes))) {
     setStatusT('statusResumed', [{ label, name: stored.name }]);
     return {
       kind: 'single',

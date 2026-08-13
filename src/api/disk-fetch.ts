@@ -30,6 +30,26 @@ function hostMatches(hostname: string, list: string[]): boolean {
   return list.some((h) => hostname === h || hostname.endsWith(`.${h}`));
 }
 
+const HTML_TEXT_PATTERNS = ['<!do', '<htm', '<?xm'];
+
+/**
+ * バイト列がディスクイメージではなくHTML/XMLページに見えるかどうかを判定する。
+ *
+ * Google Driveの共有ページURL(`https://drive.google.com/file/d/<ID>/view?usp=sharing`)へ
+ * ブラウザから直接fetchすると、GoogleはOriginをechoした `access-control-allow-origin` を
+ * 付けて200でHTML閲覧ページを返す(2026-08-13 curl実測、content-type: text/html)。
+ * fetch自体は成功(response.ok)してしまうため、Content-TypeとバイトのHTML/XML先頭シグネチャの
+ * 両方で保険をかける。
+ */
+export function looksLikeHtml(bytes: Uint8Array, contentType?: string | null): boolean {
+  if (contentType && contentType.toLowerCase().startsWith('text/html')) return true;
+  if (bytes.length < 4) return false;
+  const head = new TextDecoder('ascii', { fatal: false })
+    .decode(bytes.subarray(0, 5))
+    .toLowerCase();
+  return HTML_TEXT_PATTERNS.some((pattern) => head.startsWith(pattern));
+}
+
 /** 中継サーバのエラーJSON(`{"error":"host_not_allowed"}` 等)をHTTPステータスとあわせて利用者向け理由文言に変換する。 */
 function describeProxyError(status: number, code: string | undefined): string {
   switch (code) {
@@ -87,49 +107,18 @@ async function readResponseWithProgress(
   return result;
 }
 
-/**
- * 進捗コールバック付きでURLからディスクイメージのバイト列を取得する。
- *
- * まず指定URLへ直接fetchする(GitHub raw のようにCORS対応済みのURLに無駄な中継を挟まない
- * ため)。直接取得に失敗した場合のみ、中継サービス(VITE_DISK_PROXY)経由での再取得を試みる。
- * ただしOneDriveの共有リンクは実測で中継しても取得できないため中継を試さず即座に専用の
- * 案内を出し、中継が未設定の場合はGoogle Drive/Dropboxのみ「直接取得できません」と案内する
- * (それ以外は従来どおりCORS未対応の可能性を伝える)。
- */
-export async function fetchDiskBytes(
+/** 中継サービス経由でURLを取得し、成功したバイト列を返す。取得できない場合はエラーをthrowする。 */
+async function fetchViaProxy(
   url: string,
-  onProgress?: (loaded: number, total: number | null) => void,
+  progress: (loaded: number, total: number | null) => void,
+  fallbackError: Error,
 ): Promise<Uint8Array> {
-  const progress = onProgress ?? (() => {});
-  let directError: Error;
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(t('fetchFailedHttp', { url, status: response.status }));
-    }
-    return await readResponseWithProgress(response, progress);
-  } catch (err) {
-    directError = err instanceof Error && err.message ? err : new Error(t('fetchFailedNetwork', { url }));
-  }
-
-  const hostname = urlHostname(url);
-  if (hostMatches(hostname, ONEDRIVE_HOSTS)) {
-    throw new Error(t('fetchFailedOneDrive', { url }));
-  }
-
-  if (!DISK_PROXY_BASE) {
-    if (hostMatches(hostname, PROXY_CAPABLE_HOSTS)) {
-      throw new Error(t('fetchFailedNeedsProxy', { url }));
-    }
-    throw directError;
-  }
-
   const proxyUrl = `${DISK_PROXY_BASE}/fetch?url=${encodeURIComponent(url)}`;
   let proxyResponse: Response;
   try {
     proxyResponse = await fetch(proxyUrl);
   } catch {
-    throw directError;
+    throw fallbackError;
   }
   if (!proxyResponse.ok) {
     let code: string | undefined;
@@ -141,5 +130,71 @@ export async function fetchDiskBytes(
     }
     throw new Error(t('fetchFailedProxy', { url, reason: describeProxyError(proxyResponse.status, code) }));
   }
-  return await readResponseWithProgress(proxyResponse, progress);
+  const bytes = await readResponseWithProgress(proxyResponse, progress);
+  if (looksLikeHtml(bytes, proxyResponse.headers.get('content-type'))) {
+    throw new Error(t('fetchFailedHtmlPage', { url }));
+  }
+  return bytes;
+}
+
+/**
+ * 進捗コールバック付きでURLからディスクイメージのバイト列を取得する。
+ *
+ * 通常はまず指定URLへ直接fetchする(GitHub raw のようにCORS対応済みのURLに無駄な中継を挟まない
+ * ため)。直接取得に失敗した場合のみ、中継サービス(VITE_DISK_PROXY)経由での再取得を試みる。
+ * ただしOneDriveの共有リンクは実測で中継しても取得できないため中継を試さず即座に専用の
+ * 案内を出し、中継が未設定の場合はGoogle Drive/Dropboxのみ「直接取得できません」と案内する
+ * (それ以外は従来どおりCORS未対応の可能性を伝える)。
+ *
+ * Google Drive/Dropbox(PROXY_CAPABLE_HOSTS)の共有ページURLは、直接fetchしても
+ * 中身ではなくHTML閲覧ページが200で返ってくることが実測で判明している(Googleが
+ * OriginをechoしたCORSヘッダ付きでHTMLを返すため、fetch自体は失敗しない)。そのため
+ * 中継が設定されている場合、これらのホストは直接fetchを試さず最初から中継を使う。
+ * それでも(直接fetch成功時・中継利用時のいずれでも)取得結果がHTML/XMLに見える場合は
+ * looksLikeHtml で検出し、ディスクイメージではないと案内する。
+ */
+export async function fetchDiskBytes(
+  url: string,
+  onProgress?: (loaded: number, total: number | null) => void,
+): Promise<Uint8Array> {
+  const progress = onProgress ?? (() => {});
+  const hostname = urlHostname(url);
+  if (hostMatches(hostname, ONEDRIVE_HOSTS)) {
+    throw new Error(t('fetchFailedOneDrive', { url }));
+  }
+
+  const skipDirect = Boolean(DISK_PROXY_BASE) && hostMatches(hostname, PROXY_CAPABLE_HOSTS);
+
+  let directError: Error | undefined;
+  let directWasHtml = false;
+  if (!skipDirect) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(t('fetchFailedHttp', { url, status: response.status }));
+      }
+      const bytes = await readResponseWithProgress(response, progress);
+      if (!looksLikeHtml(bytes, response.headers.get('content-type'))) {
+        return bytes;
+      }
+      directWasHtml = true;
+    } catch (err) {
+      directError = err instanceof Error && err.message ? err : new Error(t('fetchFailedNetwork', { url }));
+    }
+  }
+
+  if (!DISK_PROXY_BASE) {
+    if (directWasHtml) throw new Error(t('fetchFailedHtmlPage', { url }));
+    if (directError) {
+      if (hostMatches(hostname, PROXY_CAPABLE_HOSTS)) {
+        throw new Error(t('fetchFailedNeedsProxy', { url }));
+      }
+      throw directError;
+    }
+    // skipDirect かつ中継未設定はここには来ない(PROXY_CAPABLE_HOSTS判定にDISK_PROXY_BASEを含むため)。
+    throw new Error(t('fetchFailedNeedsProxy', { url }));
+  }
+
+  const fallbackError = directError ?? new Error(t('fetchFailedNetwork', { url }));
+  return await fetchViaProxy(url, progress, fallbackError);
 }
