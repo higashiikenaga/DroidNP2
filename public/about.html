@@ -560,6 +560,10 @@
               URLパラメータでディスクイメージやクロック倍率を直接指定できます。
               「開けば起動する」リンクをそのまま配布できる、ということです。
             </p>
+            <p>
+              複数ディスク入りのZIPを共有したいときは <code>?lib=</code>(複数指定可)が使え、
+              種別を問わずディスクライブラリへ登録されて選択画面が開きます。
+            </p>
             <div class="note-box">
               注意: <code>hdd</code>/<code>fd1</code>/<code>fd2</code> で指定するURLの
               配信元はCORS(<code>Access-Control-Allow-Origin</code>)が有効である必要があります。
@@ -572,6 +576,11 @@
               URL parameters such as <code>?hdd=</code>/<code>?fd1=</code>/<code>?clk=</code>
               let you specify disk images and the clock multiplier directly —
               in other words, you can hand out a link that just boots when opened.
+            </p>
+            <p>
+              To share a ZIP with multiple disk images, use <code>?lib=</code>
+              (repeatable) — it registers the images into the disk library
+              regardless of type and opens the selection screen.
             </p>
             <div class="note-box">
               Note: URLs given via <code>hdd</code>/<code>fd1</code>/<code>fd2</code>
