@@ -57,7 +57,15 @@ HDD/FDイメージを読み込める）と「FreeDOS(98) で起動」（後述�
 **重要: `hdd`/`fd1`/`fd2` に指定するURLは CORS (`Access-Control-Allow-Origin`) が
 有効な配信元である必要があります。** ブラウザの `fetch` でイメージを取得するため、配布側の
 サーバーで CORS ヘッダーが付与されていないと取得に失敗します（画面にエラーメッセージが
-表示されます）。
+表示されます）。GitHub raw / GitHub Pages / 自前のCORS対応サーバなどはそのまま(直接fetchで)
+取得できます。
+
+Google Drive / Dropbox は直接fetchではCORSに対応していないため取得に失敗しますが、
+公開ページでは**中継サービス経由で自動的に再取得**されます（直接fetchが失敗した場合のみ
+中継を試みます）。fork して自分でホストする場合は後述の `VITE_DISK_PROXY` の設定が必要です。
+**OneDrive（`1drv.ms` / `onedrive.live.com` / `sharepoint.com`）の共有リンクは仕様上
+ご利用いただけません**（中継を挟んでも取得できないことが確認済みです）。Google Driveか
+Dropboxをお使いください。
 
 `hdd`/`fd1`/`fd2` は拡張子で判定できないURL（拡張子なしの配布URL等）でも、取得した
 バイト列先頭のシグネチャから ZIP/LZH を自動判別します。展開結果が1枚だけならそのまま
@@ -202,6 +210,11 @@ npm run build     # 型チェック + 本番ビルド (dist/)
 npm run preview   # ビルド成果物のプレビュー
 npm test          # ユニットテスト (vitest)
 ```
+
+Google Drive / Dropbox の中継取得を使いたい場合は、ビルド時に環境変数 `VITE_DISK_PROXY` へ
+自前の中継サービスのURL（末尾の `/` なし）を設定してください。未設定（既定）なら中継は行われず、
+直接fetchが失敗した配布元はエラーになります（公開ページ用のGitHub Actionsでの設定方法は
+[.github/workflows/deploy.yml](.github/workflows/deploy.yml) のコメントを参照）。
 
 ### 使い方ページのスクリーンショット更新
 

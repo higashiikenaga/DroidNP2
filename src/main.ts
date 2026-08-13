@@ -8,6 +8,7 @@ import {
   type PlayerUI,
 } from './ui/player.ts';
 import { extractArchive, isArchive, resolveArchiveFileName } from './api/archive.ts';
+import { fetchDiskBytes } from './api/disk-fetch.ts';
 import { buildLibraryNodes, isLibraryDiskRecord } from './api/library.ts';
 import type { WebNP2, DiskSlot } from './api/webnp2.ts';
 import { createDebugger, createWebNP2, type DebuggerController } from '../packages/embed/src/index.ts';
@@ -248,49 +249,6 @@ function fileKeyFor(name: string, size: number): string {
   return `file:${name}:${size}`;
 }
 
-async function fetchWithProgress(
-  url: string,
-  onProgress: (loaded: number, total: number | null) => void,
-): Promise<Uint8Array> {
-  let response: Response;
-  try {
-    response = await fetch(url);
-  } catch {
-    throw new Error(t('fetchFailedNetwork', { url }));
-  }
-  if (!response.ok) {
-    throw new Error(t('fetchFailedHttp', { url, status: response.status }));
-  }
-  const totalHeader = response.headers.get('content-length');
-  const total = totalHeader ? Number(totalHeader) : null;
-
-  if (!response.body) {
-    const buf = await response.arrayBuffer();
-    onProgress(buf.byteLength, total);
-    return new Uint8Array(buf);
-  }
-
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let loaded = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (value) {
-      chunks.push(value);
-      loaded += value.byteLength;
-      onProgress(loaded, total);
-    }
-  }
-  const result = new Uint8Array(loaded);
-  let offset = 0;
-  for (const chunk of chunks) {
-    result.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return result;
-}
-
 /** URLパラメータ1スロット分の解決結果。単体イメージ、複数枚アーカイブ(選択待ち)、未指定の3通り。 */
 type UrlSlotOutcome =
   | { kind: 'none' }
@@ -344,7 +302,7 @@ async function resolveImage(
 
   const name = decodeURIComponent(url.split('/').pop() || `${slot}.img`);
   ui.setProgress(t('statusFetching', { label, name }), total_ratio(0, null));
-  const bytes = await fetchWithProgress(url, (loaded, total) => {
+  const bytes = await fetchDiskBytes(url, (loaded, total) => {
     ui.setProgress(
       t('statusFetchingProgress', {
         label,
@@ -1338,7 +1296,7 @@ async function handleInsertFd(drive: 1 | 2, file: File): Promise<void> {
 /** FDD1スロットの「FreeDOS(98) 挿入」ボタン。同梱イメージをfetchしてFDD1へ挿入する(既存 insertFd 経由)。 */
 async function handleInsertFreeDos(): Promise<void> {
   try {
-    const bytes = await fetchWithProgress(FREEDOS_IMAGE_URL, (loaded, total) => {
+    const bytes = await fetchDiskBytes(FREEDOS_IMAGE_URL, (loaded, total) => {
       ui.setProgress(
         t('statusFetchingProgress', {
           label: 'FDD1',

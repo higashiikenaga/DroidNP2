@@ -113,6 +113,21 @@ interface Dict {
   }): string;
   fetchFailedNetwork(args: { url: string }): string;
   fetchFailedHttp(args: { url: string; status: number }): string;
+  /** 配信元がOneDrive(1drv.ms/onedrive.live.com/sharepoint.com)だった場合の案内(中継しても取得できないため即座に案内する)。 */
+  fetchFailedOneDrive(args: { url: string }): string;
+  /** 配信元がGoogle Drive/Dropboxで、かつ中継(VITE_DISK_PROXY)が未設定だった場合の案内。 */
+  fetchFailedNeedsProxy(args: { url: string }): string;
+  /** 中継サーバ経由の取得が失敗した場合のエラーメッセージ本文(中継側のエラーコードを反映)。 */
+  fetchFailedProxy(args: { url: string; reason: string }): string;
+  // --- 中継サーバ(VITE_DISK_PROXY)のエラーコード別の理由文言(fetchFailedProxy の reason に渡す) ---
+  proxyReasonBadUrl(): string;
+  proxyReasonOriginNotAllowed(): string;
+  proxyReasonHostNotAllowed(): string;
+  proxyReasonTooLarge(): string;
+  proxyReasonRateLimited(): string;
+  proxyReasonUpstreamFailed(): string;
+  proxyReasonRedirectNotAllowed(): string;
+  proxyReasonUnknown(args: { status: number }): string;
   /** WebMSX方式自動起動(run=1)時、AudioContextがsuspendedのままの間に表示するバナー文言。 */
   audioMuted(): string;
   toolbarRomManager(): string;
@@ -488,6 +503,20 @@ const STRINGS: Record<Lang, Dict> = {
     fetchFailedNetwork: ({ url }) =>
       `イメージの取得に失敗しました（ネットワークエラーまたはCORS設定を確認してください）: ${url}`,
     fetchFailedHttp: ({ url, status }) => `イメージの取得に失敗しました（HTTP ${status}）: ${url}`,
+    fetchFailedOneDrive: ({ url }) =>
+      `イメージの取得に失敗しました: ${url}\nOneDriveの共有リンクは仕様上ご利用いただけません。Google DriveかDropboxをお使いください。`,
+    fetchFailedNeedsProxy: ({ url }) =>
+      `イメージの取得に失敗しました: ${url}\nこの配信元は中継サーバ経由でのみ取得できますが、このビルドでは中継(VITE_DISK_PROXY)が設定されていません。自分でホストしている場合は VITE_DISK_PROXY を設定してください(詳細はREADME)。`,
+    fetchFailedProxy: ({ url, reason }) => `イメージの取得に失敗しました: ${url}\n${reason}`,
+    proxyReasonBadUrl: () => '中継サーバがURLを解釈できませんでした。',
+    proxyReasonOriginNotAllowed: () => '中継サーバがこのサイトからのリクエストを許可していません。',
+    proxyReasonHostNotAllowed: () => '中継サーバがこの配信元への転送を許可していません。',
+    proxyReasonTooLarge: () => 'ファイルサイズが中継サーバの上限を超えています。',
+    proxyReasonRateLimited: () => '中継サーバのリクエスト数が上限に達しています。しばらく待って再度お試しください。',
+    proxyReasonUpstreamFailed: () => '中継サーバから配信元への取得に失敗しました。',
+    proxyReasonRedirectNotAllowed: () =>
+      '配信元が別のサイト(ログイン画面など)へ転送しようとしたため中断しました。共有設定が「リンクを知っている全員が閲覧可」になっているか、共有リンクを省略せず全部コピーしているかご確認ください。',
+    proxyReasonUnknown: ({ status }) => `中継サーバでエラーが発生しました (HTTP ${status})。`,
     audioMuted: () => '🔇 音声はミュート中です。クリックで有効になります',
     toolbarRomManager: () => 'ROM登録',
     romDialogTitle: () => 'ROM/素材ファイル登録',
@@ -812,6 +841,20 @@ const STRINGS: Record<Lang, Dict> = {
     fetchFailedNetwork: ({ url }) =>
       `Failed to fetch image (check network error or CORS settings): ${url}`,
     fetchFailedHttp: ({ url, status }) => `Failed to fetch image (HTTP ${status}): ${url}`,
+    fetchFailedOneDrive: ({ url }) =>
+      `Failed to fetch image: ${url}\nOneDrive share links can't be used due to OneDrive's own restrictions. Please use Google Drive or Dropbox instead.`,
+    fetchFailedNeedsProxy: ({ url }) =>
+      `Failed to fetch image: ${url}\nThis source can only be fetched through the relay server, but this build has no relay (VITE_DISK_PROXY) configured. If you're hosting this yourself, set VITE_DISK_PROXY (see the README for details).`,
+    fetchFailedProxy: ({ url, reason }) => `Failed to fetch image: ${url}\n${reason}`,
+    proxyReasonBadUrl: () => 'The relay server could not parse the URL.',
+    proxyReasonOriginNotAllowed: () => 'The relay server does not allow requests from this site.',
+    proxyReasonHostNotAllowed: () => 'The relay server does not allow forwarding to this source.',
+    proxyReasonTooLarge: () => "The file exceeds the relay server's size limit.",
+    proxyReasonRateLimited: () => 'The relay server rate limit was reached. Please try again later.',
+    proxyReasonUpstreamFailed: () => 'The relay server failed to fetch from the source.',
+    proxyReasonRedirectNotAllowed: () =>
+      'The source tried to redirect to another site (e.g. a login page), so the request was blocked. Check that sharing is set to "Anyone with the link" and that you copied the full share link.',
+    proxyReasonUnknown: ({ status }) => `The relay server returned an error (HTTP ${status}).`,
     audioMuted: () => 'Audio is muted. Click to unmute',
     toolbarRomManager: () => 'ROM Files',
     romDialogTitle: () => 'Register ROM/Asset Files',
@@ -1071,9 +1114,16 @@ export function resolveLang(): Lang {
   return 'en';
 }
 
-let currentLang: Lang = resolveLang();
+// モジュール読み込み時ではなく初回参照時に解決する(遅延初期化)。webnp2.ts が
+// disk-fetch.ts 経由でこのモジュールに依存するようになったため、location/localStorage/
+// navigator の無いNode環境(vitestのnode environment)でこのモジュールをimportしただけで
+// 落ちないようにする必要がある。
+let currentLang: Lang | null = null;
 
 export function getLang(): Lang {
+  if (currentLang === null) {
+    currentLang = resolveLang();
+  }
   return currentLang;
 }
 
@@ -1094,7 +1144,7 @@ export function setLang(lang: Lang): void {
 export type StringKey = keyof Dict;
 
 export function t<K extends StringKey>(key: K, ...args: Parameters<Dict[K]>): string {
-  const fn = STRINGS[currentLang][key] as (...a: unknown[]) => string;
+  const fn = STRINGS[getLang()][key] as (...a: unknown[]) => string;
   return fn(...args);
 }
 

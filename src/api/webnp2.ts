@@ -35,6 +35,7 @@ import {
   type EmscriptenFS,
 } from '../core/module.ts';
 import * as db from '../storage/db.ts';
+import { fetchDiskBytes } from './disk-fetch.ts';
 import { NAMED_KEYS, charToKey } from './keymap.ts';
 import { encodeSjisUnits } from './sjis.ts';
 import {
@@ -464,16 +465,7 @@ export class WebNP2 extends TypedEmitter<WebNP2EventMap> {
 
   /** URLからディスクイメージをfetchしてFDドライブへ挿入する。ファイル名はURLのbasename。 */
   async insertFdFromUrl(drive: 1 | 2, url: string): Promise<{ name: string }> {
-    let res: Response;
-    try {
-      res = await fetch(url);
-    } catch (err) {
-      throw new Error(`failed to fetch ${url}: ${String(err)} (CORSでブロックされている可能性があります)`);
-    }
-    if (!res.ok) {
-      throw new Error(`failed to fetch ${url}: HTTP ${res.status} (CORSでブロックされている可能性があります)`);
-    }
-    const bytes = new Uint8Array(await res.arrayBuffer());
+    const bytes = await fetchDiskBytes(url);
     const name = basenameFromUrl(url);
     await this.insertFd(drive, { name, bytes }, url, url);
     return { name };

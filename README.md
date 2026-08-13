@@ -59,7 +59,16 @@ space does nothing, preventing accidental boots.
 with CORS (`Access-Control-Allow-Origin`) enabled.** Images are fetched with
 the browser's `fetch` API, so if the hosting server doesn't send the
 appropriate CORS headers, the fetch will fail and an error message will be
-shown on screen.
+shown on screen. GitHub raw, GitHub Pages, and your own CORS-enabled server
+work directly (plain fetch).
+
+Google Drive and Dropbox don't support CORS for a direct fetch, so it fails
+at first, but the public page **automatically retries through a relay
+service** (only when the direct fetch fails). If you fork and host this
+yourself, you need to set `VITE_DISK_PROXY` (see below) to use this.
+**OneDrive share links (`1drv.ms` / `onedrive.live.com` / `sharepoint.com`)
+are not supported** — they don't work even through the relay (confirmed by
+testing). Please use Google Drive or Dropbox instead.
 
 Even when a `hdd`/`fd1`/`fd2` URL can't be judged by its extension (e.g. a
 distribution URL with no extension), the fetched bytes are checked for a
@@ -217,6 +226,13 @@ npm run build:embed # build the reusable ESM embed package + type declarations
 npm run preview   # preview the production build
 npm test          # unit tests (vitest)
 ```
+
+To enable relay fetching for Google Drive / Dropbox, set the `VITE_DISK_PROXY`
+environment variable at build time to the URL of your own relay service (no
+trailing `/`). If unset (the default), no relay is used and sources that the
+direct fetch fails for will simply error out. See the comment in
+[.github/workflows/deploy.yml](.github/workflows/deploy.yml) for how this is
+configured for the public GitHub Pages build.
 
 The reusable engine/debugger/UI-component API is documented in
 [`packages/embed/README.md`](packages/embed/README.md).
