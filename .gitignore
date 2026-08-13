@@ -5,3 +5,4 @@ public/test/
 .DS_Store
 .claude/
 test/fixtures/lzh/
+.env.local
