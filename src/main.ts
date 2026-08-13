@@ -7,9 +7,9 @@ import {
   type LibraryNode,
   type PlayerUI,
 } from './ui/player.ts';
-import { extractArchive, isArchive, resolveArchiveFileName } from './api/archive.ts';
+import { baseNameOf, extractArchive, isArchive, resolveArchiveFileName } from './api/archive.ts';
 import { fetchDiskBytes, looksLikeHtml } from './api/disk-fetch.ts';
-import { buildLibraryNodes, isLibraryDiskRecord } from './api/library.ts';
+import { buildLibraryNodes, classifyLibUrlResult, isLibraryDiskRecord, type LibUrlOutcome } from './api/library.ts';
 import type { WebNP2, DiskSlot } from './api/webnp2.ts';
 import { createDebugger, createWebNP2, type DebuggerController } from '../packages/embed/src/index.ts';
 import { Bridge } from './api/bridge.ts';
@@ -95,6 +95,9 @@ const fd2Url = params.get('fd2') ?? undefined;
 const runParam = params.get('run') === '1';
 // freedos=1: 同梱の FreeDOS(98) 起動FDを fd1 としてマウント対象にする(fd1指定があればそちらを優先)。
 const freedosParam = params.get('freedos') === '1';
+// lib=<url>: 複数指定可(ディスクライブラリへ登録するだけの共有リンク用、fd1/fd2/hddと異なり
+// スロット挿入も種別チェックもしない)。カンマ区切りにしないのはURL自体にカンマが含まれ得るため。
+const libUrls = params.getAll('lib').filter((v) => v !== '');
 
 // 同梱FreeDOS(98)起動FDイメージの配置場所と、IndexedDB永続化用の固定sourceKey。
 // URL由来ではなく固定キーにすることで、オーバーレイ2択/?freedos=1/FDD1挿入ボタンの
@@ -354,6 +357,84 @@ function finishArchiveImages(
     };
   }
   return { kind: 'group', groupId };
+}
+
+/**
+ * `?lib=<url>` パラメータ由来のURLからディスクイメージを取得し、種別(hdd/fd)チェックなしに
+ * ディスクライブラリ(IndexedDB)へ登録する。fd1/fd2/hdd 用の resolveImage と共通の取得・
+ * アーカイブ展開・再訪時の復帰ロジックを踏襲するが、スロットへは一切挿入しない
+ * (呼び出し側は必ずディスクライブラリを開いて選ばせる)。
+ * HDD/FD混在のZIPもそのまま登録できる(スロットへ挿入する時点で既存の種別チェックが効く)。
+ */
+async function resolveLibUrl(url: string, label: string): Promise<LibUrlOutcome> {
+  const groupId = `arcurl:${url}`;
+  const groupPrefix = `${groupId}/`;
+  const storedGroupItems = await db.getAllByPrefix(groupPrefix);
+  if (storedGroupItems.length > 0) {
+    setStatusT('statusArchiveResumed', [{ label, count: storedGroupItems.length }]);
+    return classifyLibUrlResult(storedGroupItems, groupId);
+  }
+
+  const stored = await db.get(url);
+  // resolveImageと同じ理由(修正前バグでHTMLを誤保存したレコード)で、HTMLに見える場合は復帰しない。
+  if (stored && !looksLikeHtml(new Uint8Array(stored.bytes))) {
+    setStatusT('statusResumed', [{ label, name: stored.name }]);
+    return classifyLibUrlResult([{ sourceKey: url }], groupId);
+  }
+
+  const name = decodeURIComponent(url.split('/').pop() || 'lib.img');
+  ui.setProgress(t('statusFetching', { label, name }), total_ratio(0, null));
+  const bytes = await fetchDiskBytes(url, (loaded, total) => {
+    ui.setProgress(
+      t('statusFetchingProgress', {
+        label,
+        name,
+        loaded: formatBytes(loaded),
+        total: total ? formatBytes(total) : null,
+      }),
+      total ? loaded / total : null,
+    );
+  });
+
+  // 拡張子がなくても中身がZIP/LZHならアーカイブとして展開する(配信URLに拡張子が付かないケース対策)。
+  const archiveName = resolveArchiveFileName(name, bytes);
+  if (archiveName) {
+    const images = await expandArchiveBytesToImages(archiveName, bytes, groupId);
+    if (images.length > 0) {
+      await registerImagesToLibrary(images, images.length > 1 ? groupId : undefined, name);
+    }
+    return classifyLibUrlResult(images, groupId);
+  }
+
+  // 非アーカイブの単体ファイルは(resolveImageのfd1/fd2/hddパスと同様)拡張子の種別チェックを
+  // 行わずそのまま登録する。ライブラリ一覧には拡張子が判定可能なものだけが表示される
+  // (isLibraryDiskRecord)ため、未知拡張子でも保存はできるが一覧には出ない。
+  await db.putPreservingMeta({
+    sourceKey: url,
+    name,
+    bytes: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
+    savedAt: Date.now(),
+  });
+  return classifyLibUrlResult([{ sourceKey: url }], groupId);
+}
+
+/**
+ * `?lib=` パラメータ(複数指定可)を解決してディスクライブラリへ登録し、必ずライブラリダイアログを
+ * 開く(run=1でも自動起動しない)。1本のURL取得に失敗しても他のURLの処理は継続する。
+ */
+async function handleLibParams(urls: string[]): Promise<void> {
+  let focusGroupId: string | undefined;
+  for (let i = 0; i < urls.length; i++) {
+    const label = t('urlLibSlotLabel', { index: i + 1 });
+    try {
+      const outcome = await resolveLibUrl(urls[i], label);
+      if (outcome.kind === 'group' && focusGroupId === undefined) focusGroupId = outcome.groupId;
+    } catch (err) {
+      setStatusT('statusBootFailed', [{ message: describeError(err) }], true);
+    }
+  }
+  ui.hideProgress();
+  ui.openDiskLibrary(focusGroupId);
 }
 
 function total_ratio(loaded: number, total: number | null): number | null {
@@ -852,12 +933,6 @@ interface RegisteredImage {
   kind: 'hdd' | 'fd';
   /** グループ化(複数枚アーカイブ由来)されたときだけ、その所属グループIDが入る。 */
   group?: string;
-}
-
-/** アーカイブ内パスからファイル名部分のみを取り出す(グループ内表示とイメージ種別判定に使う)。 */
-function baseNameOf(path: string): string {
-  const i = path.lastIndexOf('/');
-  return i >= 0 ? path.slice(i + 1) : path;
 }
 
 /**
@@ -1883,6 +1958,13 @@ function init(): void {
   // (自動起動時のミュートバナー解除、および通常起動時の保険を兼ねる)。
   document.addEventListener('click', attemptResumeAudio);
   document.addEventListener('keydown', attemptResumeAudio);
+
+  // lib=: 種別を問わずライブラリへ登録するだけの共有リンク。常にライブラリを開き、
+  // run=1が指定されていても自動起動しない(fd1/fd2/hddより優先して先に判定する)。
+  if (libUrls.length > 0) {
+    void handleLibParams(libUrls);
+    return;
+  }
 
   // run=1 の場合はオーバーレイのクリック操作を待たずページロード後すぐにコアを起動する
   // (ディスク未指定でもrun=1だけで自動起動する)。

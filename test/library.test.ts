@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildLibraryNodes, isLibraryDiskRecord } from '../src/api/library.ts';
+import { buildLibraryNodes, classifyLibUrlResult, isLibraryDiskRecord } from '../src/api/library.ts';
 import type { StoredImage } from '../src/storage/db.ts';
 
 const HDD_EXTENSIONS = ['.thd', '.hdi', '.nhd', '.hdd'];
@@ -116,5 +116,26 @@ describe('buildLibraryNodes', () => {
       classify,
     );
     expect(nodes).toEqual([]);
+  });
+});
+
+describe('classifyLibUrlResult', () => {
+  it('0件はemptyになる(圧縮ファイル内にディスクイメージが無かった場合)', () => {
+    expect(classifyLibUrlResult([], 'arcurl:https://example.com/disks.zip')).toEqual({ kind: 'empty' });
+  });
+
+  it('1件はsingleになりsourceKeyを返す(自動起動はしないため名前/バイト列は持たない)', () => {
+    expect(classifyLibUrlResult([{ sourceKey: 'arcurl:x/DISK_A.TFD' }], 'arcurl:x')).toEqual({
+      kind: 'single',
+      sourceKey: 'arcurl:x/DISK_A.TFD',
+    });
+  });
+
+  it('2件以上はgroupになりgroupIdを返す(種別チェックはしないので混在も許容する)', () => {
+    const outcome = classifyLibUrlResult(
+      [{ sourceKey: 'arcurl:x/DISK_A.TFD' }, { sourceKey: 'arcurl:x/DISK_B.HDI' }],
+      'arcurl:x',
+    );
+    expect(outcome).toEqual({ kind: 'group', groupId: 'arcurl:x' });
   });
 });

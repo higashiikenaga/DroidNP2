@@ -392,6 +392,12 @@
               含まれる場合はどれを使うか決められないため、<code>run=1</code>を
               指定していても自動起動せずディスクライブラリを開いて選ばせます。
             </p>
+            <p>
+              <code>?lib=URL</code>(<code>&amp;lib=URL2</code> のように複数指定可)は、種別
+              (FD/HDD)を問わずディスクライブラリへ登録するだけの共有リンク用パラメータです。
+              スロットへは自動挿入せず必ずライブラリを開き、指定時は <code>run=1</code> でも
+              自動起動しません。
+            </p>
           </div>
           <div class="lang-en">
             <h2>Loading disk images</h2>
@@ -444,6 +450,12 @@
               contains multiple disks, WebNP2 can't decide which one to boot, so
               it skips auto-start (even with <code>run=1</code>) and opens the
               Disk Library for you to choose.
+            </p>
+            <p>
+              <code>?lib=URL</code> (repeatable, e.g. <code>&amp;lib=URL2</code>) is a sharing-link
+              parameter that only registers images in the Disk Library, regardless of kind (FD/HDD).
+              It never auto-inserts into a slot — the Library always opens — and skips <code>run=1</code>
+              auto-boot whenever it's given.
             </p>
           </div>
         </section>

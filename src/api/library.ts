@@ -18,6 +18,24 @@ export function isLibraryDiskRecord(
 }
 
 /**
+ * `?lib=<url>` パラメータで取得・ライブラリ登録したディスクイメージ群を、
+ * 呼び出し側(main.ts)がどう扱うか(スロットへは挿入せず、ライブラリを開くだけ)決めるための
+ * 枚数分岐。fd1/fd2/hdd 用の finishArchiveImages と異なり種別(hdd/fd)チェックは行わない
+ * (HDD/FD混在のZIPもそのまま登録できるようにするため。スロットへ挿入する時点で
+ * 既存の種別チェックが効くので安全性は変わらない)。
+ */
+export type LibUrlOutcome =
+  | { kind: 'empty' }
+  | { kind: 'single'; sourceKey: string }
+  | { kind: 'group'; groupId: string };
+
+export function classifyLibUrlResult(images: Array<{ sourceKey: string }>, groupId: string): LibUrlOutcome {
+  if (images.length === 0) return { kind: 'empty' };
+  if (images.length === 1) return { kind: 'single', sourceKey: images[0].sourceKey };
+  return { kind: 'group', groupId };
+}
+
+/**
  * 保存済みレコードをライブラリ一覧のツリーへ変換する。
  * group を持つレコードは1つのフォルダ(group ノード)にまとめ、それ以外は単体(item ノード)にする。
  * フォルダ内はアーカイブ内の出現順(groupIndex)、トップレベルは保存時刻の降順。

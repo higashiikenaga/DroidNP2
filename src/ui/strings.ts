@@ -104,6 +104,8 @@ interface Dict {
   statusBootSuccess(): string;
   statusBootFailed(args: { message: string }): string;
   statusResumed(args: { label: string; name: string }): string;
+  /** ?lib=<url> (複数指定可)の取得中/復元時のラベルで使う、何本目のlibか示す表示名(fd1/fd2/hddのラベル相当のlib版)。 */
+  urlLibSlotLabel(args: { index: number }): string;
   statusFetching(args: { label: string; name: string }): string;
   statusFetchingProgress(args: {
     label: string;
@@ -499,6 +501,7 @@ const STRINGS: Record<Lang, Dict> = {
     statusBootSuccess: () => '起動しました。',
     statusBootFailed: ({ message }) => `起動に失敗しました: ${message}`,
     statusResumed: ({ label, name }) => `${label}: 前回の続きから再開中です（${name}）`,
+    urlLibSlotLabel: ({ index }) => `ライブラリ${index}`,
     statusFetching: ({ label, name }) => `${label} を取得中: ${name}`,
     statusFetchingProgress: ({ label, name, loaded, total }) =>
       `${label} を取得中: ${name} (${loaded}${total ? ' / ' + total : ''})`,
@@ -839,6 +842,7 @@ const STRINGS: Record<Lang, Dict> = {
     statusBootSuccess: () => 'Started.',
     statusBootFailed: ({ message }) => `Failed to start: ${message}`,
     statusResumed: ({ label, name }) => `${label}: Resuming from previous session (${name})`,
+    urlLibSlotLabel: ({ index }) => `Library ${index}`,
     statusFetching: ({ label, name }) => `Fetching ${label}: ${name}`,
     statusFetchingProgress: ({ label, name, loaded, total }) =>
       `Fetching ${label}: ${name} (${loaded}${total ? ' / ' + total : ''})`,

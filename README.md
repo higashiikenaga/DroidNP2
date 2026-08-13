@@ -37,6 +37,7 @@ https://.../?hdd=<HDD image URL>&fd1=<FD1 image URL>&fd2=<FD2 image URL>&run=1&c
 |---|---|---|
 | `hdd` | URL of an HDD image | NP2kai-compatible formats (`.thd`, etc.). If the fetched content is a ZIP/LZH archive, it's automatically extracted and the disk image(s) inside are registered to the Disk Library before use |
 | `fd1` / `fd2` | URL of a floppy disk image | `.d88`, `.fdi`, etc. A ZIP/LZH archive is auto-extracted the same way as `hdd` |
+| `lib` | URL of a disk image to register in the Disk Library only (repeatable) | See below |
 | `run` | `1` to boot immediately without the start overlay | Due to browser autoplay restrictions the emulator starts muted, showing an "Audio is muted" banner; audio is enabled on your first click or key press |
 | `mem` | Extended memory size in MB | Defaults to `1` (640 KB conventional + 1 MB extended — a typical DOS setup). Increase it (e.g. `mem=13`) for software that needs more memory. Clamped to 0–230 |
 | `clk` | Clock multiplier | Written to the core cfg as `clk_mult` (integer, clamped to 1–32). Core default when omitted |
@@ -81,6 +82,27 @@ contain an image matching the requested slot (e.g. a `hdd` archive that only
 contains FD images), an error message is shown and startup is aborted. Once
 a URL has been extracted, it stays registered in IndexedDB, so opening the
 same URL again resumes from the Disk Library instead of re-downloading it.
+
+Notes on `lib` (for sharing links to multi-disk collections):
+
+- Use `?lib=<url>` and repeat it (`&lib=<url2>`, ...) to specify **multiple
+  URLs** (comma-separated values aren't supported, since a URL itself can
+  contain a comma).
+- Unlike `fd1`/`fd2`/`hdd`, `lib` registers images **regardless of their kind**
+  (FD or HDD) — a ZIP mixing HDD and FD images can be registered as-is (the
+  usual kind check still applies once you insert an image into a slot).
+- Regardless of how many disk images it resolves to, `lib` never auto-inserts
+  into a slot — it **always opens the Disk Library** so the recipient can pick
+  what to use.
+- `run=1` is skipped whenever `lib` is given (the Disk Library opens instead
+  of auto-booting).
+- If combined with `fd1`/`fd2`/`hdd`, those URLs aren't discarded — WebNP2
+  only resolves them once you actually start the emulator (via the overlay's
+  start button), so pressing that button afterward still boots with them,
+  exactly as it would without `run=1`.
+- Fetching, resuming on revisit, and archive extraction follow the same rules
+  as `fd1`/`fd2`/`hdd` (CORS required, no re-download on revisit, ZIP/LZH
+  auto-extracted).
 
 ### Drag & drop
 
