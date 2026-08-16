@@ -312,6 +312,15 @@ excluded via `.gitignore` and never committed.
   this repository.** `font.bmp` is font data derived from the Shinonome
   font project and is unrelated to, and does not raise the same copyright
   concerns as, real PC-98 ROM images.
+- ROM-less boot is implemented via NP2kai's built-in BIOS-compatible
+  routine (inherited unmodified from upstream NP2/NP2kai, BSD-licensed
+  source). As part of this routine, the string
+  `"Copyright (C) 1983 by NEC Corporation"` is placed at the same guest
+  memory location as on real hardware; some software uses this string for
+  NEC machine-type detection. This is upstream behavior carried over as-is
+  for software compatibility, not something added by this repository, and
+  the string is present in the bundled wasm build (see NP2kai's
+  `bios/bios.c`).
 - `public/freedos/fd98_2hd.xdf` is the FreeDOS(98) boot floppy described
   above, licensed under GPLv2+; source is available from
   [lpproj/fdkernel](https://github.com/lpproj/fdkernel) and

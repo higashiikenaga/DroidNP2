@@ -279,6 +279,12 @@ scripts/update-core.sh
 - **PC-98 の ROM イメージ・市販ソフトウェアのディスクイメージは一切同梱していません。**
   `font.bmp` は東雲フォント由来のフォントデータで、著作権上の問題がある PC-98 実機 ROM
   とは別物です。
+- ROM無し起動は、NP2kai 組み込みの BIOS 互換ルーチン(上流 NP2/NP2kai から無改変で継承した
+  BSDライセンス公開ソース)によって実現しています。この処理の一部として、実機と同じ
+  ゲストメモリ上の位置に `"Copyright (C) 1983 by NEC Corporation"` という文字列を配置して
+  おり、一部ソフトウェアはこの文字列を NEC 機種判定に用います。これは本リポジトリが追加した
+  処理ではなく、ソフトウェア互換性のための上流由来の動作をそのまま継承したものです。この
+  文字列は配布 wasm ビルドにも含まれます(NP2kai の `bios/bios.c` 由来)。
 - `public/freedos/fd98_2hd.xdf` は前述の FreeDOS(98) 起動FDで、GPLv2以降の下で配布しています。
   ソースは [lpproj/fdkernel](https://github.com/lpproj/fdkernel) および
   [lpproj/freecom_dbcs2](https://github.com/lpproj/freecom_dbcs2) から入手可能です。
