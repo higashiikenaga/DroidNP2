@@ -2,6 +2,8 @@
 // NP2kai-wasm (emnp21kai_sdl2.js) は非 MODULARIZE 形式のビルドなので、
 // グローバル `window.Module` を先に定義してから <script> を動的挿入して起動する。
 
+import { WEBNP2_BUILD_ID } from '../version.ts';
+
 export interface DiskFile {
   name: string;
   bytes: Uint8Array;
@@ -114,6 +116,18 @@ function requireCcall(): CCallFn {
 
 const CORE_BASE = './core/';
 const CORE_SCRIPT_ID = 'webnp2-core-script';
+
+/**
+ * public/core/ 配下の固定名アセット(emnp21kai_sdl2.js/.wasm、font.bmp)に付ける
+ * キャッシュバスティング用クエリ。ビルド版文字列(src/version.ts)由来の固定値なので、
+ * 同じビルドでは常に同じURLになりブラウザが正しくキャッシュできる一方、
+ * ビルドが変わればURLも変わり確実に新しいものを取得しにいく。
+ * 以前は `?v=${Date.now()}` でリロードのたびに変わっていた(コアJS 185KBが
+ * 永久にキャッシュされない問題)。
+ */
+function withBuildQuery(url: string): string {
+  return `${url}?v=${WEBNP2_BUILD_ID}`;
+}
 
 /**
  * YM2608リズム波形6本の名前(小文字、コアのMEMFS上での基本表記)。
@@ -236,7 +250,7 @@ export function boot(config: BootConfig, canvas: HTMLCanvasElement): Promise<Ems
                 FS.writeFile(`/${upperAlias}`, rom.bytes);
               }
             }
-            FS.createPreloadedFile('/', 'font.bmp', `${CORE_BASE}font.bmp`, true, false);
+            FS.createPreloadedFile('/', 'font.bmp', withBuildQuery(`${CORE_BASE}font.bmp`), true, false);
             FS.writeFile('/np21kai.cfg', buildCfg(config));
           } catch (err) {
             fail(err);
@@ -245,7 +259,9 @@ export function boot(config: BootConfig, canvas: HTMLCanvasElement): Promise<Ems
       ],
       print: (text: string) => console.log('[WebNP2 core stdout]', text),
       printErr: (text: string) => console.log('[WebNP2 core stderr]', text),
-      locateFile: (path: string) => CORE_BASE + path,
+      // locateFile はこのビルドでは emnp21kai_sdl2.wasm の取得先解決にのみ使われる
+      // (emnp21kai_sdl2.js内のlocateFile("emnp21kai_sdl2.wasm")呼び出し1箇所のみ)。
+      locateFile: (path: string) => withBuildQuery(CORE_BASE + path),
       arguments: config.fds.map((fd) => `/disk/${fd.name}`),
       onRuntimeInitialized: () => {
         if (settled) return;
@@ -287,7 +303,7 @@ export function boot(config: BootConfig, canvas: HTMLCanvasElement): Promise<Ems
 
     const script = document.createElement('script');
     script.id = CORE_SCRIPT_ID;
-    script.src = `${CORE_BASE}emnp21kai_sdl2.js?v=${Date.now()}`;
+    script.src = withBuildQuery(`${CORE_BASE}emnp21kai_sdl2.js`);
     script.onerror = () => fail(new Error(`failed to load ${script.src}`));
     document.body.appendChild(script);
   });

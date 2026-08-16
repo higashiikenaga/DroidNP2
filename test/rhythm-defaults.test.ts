@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { rhythmUpperCaseAliasFor, RHYTHM_WAV_NAMES } from '../src/core/module.ts';
 import { loadBundledRhythmWavs, mergeRhythmDefaults } from '../src/api/roms.ts';
 import type { DiskFile } from '../src/core/module.ts';
+import { WEBNP2_BUILD_ID } from '../src/version.ts';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -69,9 +70,9 @@ describe('mergeRhythmDefaults', () => {
 });
 
 describe('loadBundledRhythmWavs', () => {
-  it('6本すべてを相対パス(./rhythm/名前)からfetchしてDiskFile[]で返す', async () => {
+  it('6本すべてを相対パス(./rhythm/名前?v=ビルドID)からfetchしてDiskFile[]で返す', async () => {
     const fetchMock = vi.fn(async (url: string) => {
-      const name = url.replace('./rhythm/', '');
+      const name = url.replace('./rhythm/', '').split('?')[0];
       return {
         ok: true,
         arrayBuffer: async () => new Uint8Array([name.length]).buffer,
@@ -84,8 +85,11 @@ describe('loadBundledRhythmWavs', () => {
     expect(files).toHaveLength(RHYTHM_WAV_NAMES.length);
     expect(new Set(files.map((f) => f.name))).toEqual(new Set(RHYTHM_WAV_NAMES));
     expect(fetchMock).toHaveBeenCalledTimes(RHYTHM_WAV_NAMES.length);
+    // ?v=<buildId> はビルド版文字列由来の固定クエリ(src/core/module.tsのwithBuildQueryと
+    // 同じ考え方)。同じビルドでは常に同じURLになりキャッシュが効く一方、
+    // ビルドが変われば確実に新しいものを取得しにいく。
     for (const name of RHYTHM_WAV_NAMES) {
-      expect(fetchMock).toHaveBeenCalledWith(`./rhythm/${name}`);
+      expect(fetchMock).toHaveBeenCalledWith(`./rhythm/${name}?v=${WEBNP2_BUILD_ID}`);
     }
   });
 

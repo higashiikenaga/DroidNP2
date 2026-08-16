@@ -688,6 +688,14 @@ footer.app-footer a {
   color: var(--page-footer-text);
 }
 
+/* ビルド版文字列。リンク行の下にもう1行小さく添えるだけで、狭い画面幅でも
+   既存のリンク表示を押し出さない(白帯を追加せず折り返しに任せる)。 */
+.app-footer-version {
+  margin-top: 4px;
+  font-size: 10px;
+  opacity: 0.75;
+}
+
 /* ROM/素材ファイル登録ダイアログ */
 .rom-modal-backdrop {
   position: fixed;

@@ -13,6 +13,7 @@ import { buildLibraryNodes, classifyLibUrlResult, isLibraryDiskRecord, type LibU
 import type { WebNP2, DiskSlot } from './api/webnp2.ts';
 import { createDebugger, createWebNP2, type DebuggerController } from '../packages/embed/src/index.ts';
 import { Bridge } from './api/bridge.ts';
+import { WEBNP2_VERSION_FOOTER } from './version.ts';
 import * as db from './storage/db.ts';
 import type { DiskFile } from './core/module.ts';
 import {
@@ -252,6 +253,13 @@ function applyDocumentStrings(): void {
     aboutLink.rel = 'noopener';
     aboutLink.textContent = t('footerAboutLabel');
     footer.append(aboutLink);
+
+    // どのビルドを見ているか識別するための版文字列(git commit時刻+ハッシュ由来。
+    // 生成は vite.config.ts の define、詳細は src/version.ts / tools/compute-version.mjs 参照)。
+    const versionEl = document.createElement('div');
+    versionEl.className = 'app-footer-version';
+    versionEl.textContent = WEBNP2_VERSION_FOOTER;
+    footer.append(versionEl);
   }
 }
 

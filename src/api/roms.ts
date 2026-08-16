@@ -6,6 +6,7 @@ import { RHYTHM_WAV_NAMES } from '../core/module.ts';
 import type { DiskFile } from '../core/module.ts';
 import * as db from '../storage/db.ts';
 import { t } from '../ui/strings.ts';
+import { WEBNP2_BUILD_ID } from '../version.ts';
 
 const ROM_KEY_PREFIX = 'rom:';
 const RHYTHM_WAV_NAME_SET: ReadonlySet<string> = new Set(RHYTHM_WAV_NAMES);
@@ -245,7 +246,9 @@ export async function loadBundledRhythmWavs(): Promise<DiskFile[]> {
   const results = await Promise.all(
     RHYTHM_WAV_NAMES.map(async (name): Promise<DiskFile | undefined> => {
       try {
-        const res = await fetch(`${RHYTHM_BASE}${name}`);
+        // src/core/module.ts の withBuildQuery と同じ考え方: ビルド版文字列由来の
+        // 固定クエリを付け、同一ビルドではキャッシュを効かせつつ更新時は確実に取り直す。
+        const res = await fetch(`${RHYTHM_BASE}${name}?v=${WEBNP2_BUILD_ID}`);
         if (!res.ok) return undefined;
         return { name, bytes: new Uint8Array(await res.arrayBuffer()) };
       } catch {
