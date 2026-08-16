@@ -115,6 +115,30 @@ function requireCcall(): CCallFn {
 const CORE_BASE = './core/';
 const CORE_SCRIPT_ID = 'webnp2-core-script';
 
+/**
+ * YM2608リズム波形6本の名前(小文字、コアのMEMFS上での基本表記)。
+ * roms.ts の同梱波形読み込み・登録名検証と共有するためここで定義する。
+ */
+export const RHYTHM_WAV_NAMES = [
+  '2608_bd.wav',
+  '2608_sd.wav',
+  '2608_top.wav',
+  '2608_hh.wav',
+  '2608_tom.wav',
+  '2608_rim.wav',
+] as const;
+
+const RHYTHM_WAV_NAME_SET: ReadonlySet<string> = new Set(RHYTHM_WAV_NAMES);
+
+/**
+ * rom.name (小文字化済み想定) がリズム波形6本のいずれかなら、MEMFSへ追加で
+ * 複製すべき大文字名(`2608_BD.WAV` 形式)を返す。それ以外は undefined。
+ * 単体テストしやすいよう preRun 本体から切り出した純関数。
+ */
+export function rhythmUpperCaseAliasFor(lowerName: string): string | undefined {
+  return RHYTHM_WAV_NAME_SET.has(lowerName) ? lowerName.toUpperCase() : undefined;
+}
+
 let booted = false;
 
 /** 現在起動中かどうか。二重boot防止に使う。 */
@@ -198,7 +222,19 @@ export function boot(config: BootConfig, canvas: HTMLCanvasElement): Promise<Ems
               FS.writeFile(`/disk/${fd.name}`, fd.bytes);
             }
             for (const rom of config.roms ?? []) {
-              FS.writeFile(`/${rom.name}`, rom.bytes);
+              const lowerName = rom.name.toLowerCase();
+              FS.writeFile(`/${lowerName}`, rom.bytes);
+              // リズム波形6本は小文字名だけでなく大文字名でも複製して置く。
+              // 実際にリズム波形を読むのはNP2kaiのsound/rhythmc.c(小文字 2608_bd.wav)
+              // ではなく、fmgenコア(buildCfgでUSEFMGEN=trueにより常時有効)の
+              // FM::OPNA::LoadRhythmSample()で、こちらは大文字の2608_BD.WAV等しか
+              // 探さない(sound/opna.cのgetbiospath経由でMEMFSルート直下を見る)。
+              // しかもfmgenは6本のうち1本でも開けないと全部を破棄して無音になるため、
+              // 両表記を必ずセットで揃える。
+              const upperAlias = rhythmUpperCaseAliasFor(lowerName);
+              if (upperAlias) {
+                FS.writeFile(`/${upperAlias}`, rom.bytes);
+              }
             }
             FS.createPreloadedFile('/', 'font.bmp', `${CORE_BASE}font.bmp`, true, false);
             FS.writeFile('/np21kai.cfg', buildCfg(config));

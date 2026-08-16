@@ -2,7 +2,8 @@
 
 import { getLang, langSelfName, setLang, t } from './strings.ts';
 import type { DiskSlot } from '../api/webnp2.ts';
-import type { RomEntry } from '../api/roms.ts';
+import type { RomEntry, RejectedRomFile } from '../api/roms.ts';
+import { rhythmRejectReasonText } from '../api/roms.ts';
 import { buildKbdRows } from './kbd-layout.ts';
 import { buildFileManagerDialog, type FileManagerCallbacks } from './filemanager.ts';
 import { buildDebuggerDialog, type DebuggerCallbacks } from './debugger.ts';
@@ -123,7 +124,9 @@ export interface PlayerCallbacks {
   /** ROM登録ダイアログの一覧取得。 */
   onListRoms: () => Promise<RomEntry[]>;
   /** ROM登録ダイアログのファイル選択時。 */
-  onSaveRomFiles: (files: File[]) => Promise<{ saved: string[]; skipped: string[] }>;
+  onSaveRomFiles: (
+    files: File[],
+  ) => Promise<{ saved: string[]; skipped: string[]; rejected: RejectedRomFile[] }>;
   /** ROM登録ダイアログの削除ボタン押下時。 */
   onDeleteRom: (name: string) => Promise<void>;
   /** ディスクライブラリダイアログの一覧取得(フォルダ/単体が混在したツリー)。 */
@@ -946,10 +949,14 @@ export function buildPlayerUI(
   const registerRomFiles = (files: File[]): void => {
     if (files.length === 0) return;
     void (async () => {
-      const { saved, skipped } = await callbacks.onSaveRomFiles(files);
+      const { saved, skipped, rejected } = await callbacks.onSaveRomFiles(files);
       romStatus.textContent = t('romDialogSaved', { saved: saved.length, skipped: skipped.length });
       if (skipped.length > 0) {
         romStatus.append(el('br'), t('romDialogSkippedNote', { names: skipped.join(', ') }));
+      }
+      if (rejected.length > 0) {
+        const items = rejected.map((r) => `${r.name}(${rhythmRejectReasonText(r.reason)})`).join(', ');
+        romStatus.append(el('br'), t('romDialogRejectedNote', { items }));
       }
       await refreshRomList();
     })();

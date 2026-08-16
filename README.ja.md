@@ -283,6 +283,19 @@ scripts/update-core.sh
   ソースは [lpproj/fdkernel](https://github.com/lpproj/fdkernel) および
   [lpproj/freecom_dbcs2](https://github.com/lpproj/freecom_dbcs2) から入手可能です。
   詳細は `public/freedos/README.txt` を参照してください。
+- `public/rhythm/2608_bd.wav` / `2608_sd.wav` / `2608_top.wav` / `2608_hh.wav` /
+  `2608_tom.wav` / `2608_rim.wav` は、何も登録しなくてもリズムが無音にならないよう同梱している
+  YM2608リズム音源の代替波形です(「YM2608風リズム音源音色データ Ver.2.0」、作者: メモル
+  (Takanori YOSHIMURA) / memoru@kisoba.info、配布元:
+  <https://sound.jp/jaime/fmp_top.html>、アーカイブ:
+  <https://sound.jp/jaime/files/2608modoki2.zip>)。配布条件(同梱テキストの原文引用):
+  「配布・転載・ソフトへの組み込み等、有償無償にかかわらずご自由にどうぞ。ソフトに組み込む
+  場合や、サンプリング素材集の一部として配布する場合は何のタイトルに使ったかお知らせいただ
+  けるとうれしいです。」**YM2608実チップのROMから吸い出したデータではありません。**
+  作者本人の記述のとおり「手持ちの音源から音色を集め、YM2608のリズム音に似せてエディット」
+  した独自制作の代替音であり、「本物のYM2608のリズム音とは根本的に波形が異なる」ことも
+  作者本人が明言しています。実機由来の本物の `2608_*.wav` をROM/素材登録ダイアログから
+  登録すれば、そちらが同梱の代替波形より優先されます(`src/api/roms.ts` 参照)。
 - ユーザーが `hdd`/`fd1`/`fd2` パラメータや D&D で読み込ませるディスクイメージについては
   各自が適法に入手・使用する責任を負います。
 

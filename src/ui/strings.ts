@@ -146,6 +146,15 @@ interface Dict {
   romDialogClose(): string;
   romDialogSaved(args: { saved: number; skipped: number }): string;
   romDialogSkippedNote(args: { names: string }): string;
+  /** リズム波形WAVがfmgenの受け入れ条件を満たさず登録できなかった場合の一覧文言。 */
+  romDialogRejectedNote(args: { items: string }): string;
+  rhythmRejectReasonNotRiffWave(): string;
+  rhythmRejectReasonNoFmtChunk(): string;
+  rhythmRejectReasonNotPcm(): string;
+  rhythmRejectReasonNotMono(): string;
+  rhythmRejectReasonNoDataChunk(): string;
+  rhythmRejectReasonTooManySamples(): string;
+  rhythmRejectReasonNot16Bit(): string;
   /** オーバーレイの「保存済みディスクから起動」ボタン。 */
   overlayLibraryBtn(): string;
   toolbarDiskLibrary(): string;
@@ -528,7 +537,7 @@ const STRINGS: Record<Lang, Dict> = {
     toolbarRomManager: () => 'ROM登録',
     romDialogTitle: () => 'ROM/素材ファイル登録',
     romDialogDescription: () =>
-      'デスクトップ版NP2kaiで使っていたROM/素材ファイル(bios.rom, itf.rom, sound.rom, font.rom, 2608_*.wav 等)を登録すると、ブラウザ内(IndexedDB)にのみ保存され、次回以降の起動時に自動で組み込まれます。サーバーには送信されません。',
+      'デスクトップ版NP2kaiで使っていたROM/素材ファイル(bios.rom, itf.rom, sound.rom, font.rom等)を登録すると、ブラウザ内(IndexedDB)にのみ保存され、次回以降の起動時に自動で組み込まれます。サーバーには送信されません。なお、YM2608リズム音源(2608_*.wav)は代替音を同梱済みのため未登録でも鳴ります(実機のYM2608実チップのリズム音そのものではなく、作者が独自に制作した代替音です)。実機由来の本物をお持ちの場合は2608_*.wavを登録すればそちらが優先されます。',
     romDialogSelectFiles: () => 'ファイルを選択',
     romDialogDropHint: () => 'このダイアログへファイルをドラッグ＆ドロップしても登録できます。',
     romDialogListEmpty: () => '登録済みのファイルはありません。',
@@ -539,6 +548,15 @@ const STRINGS: Record<Lang, Dict> = {
     romDialogSaved: ({ saved, skipped }) =>
       `${saved}件のファイルを登録しました。${skipped > 0 ? `(${skipped}件は非対応形式のためスキップ)` : ''}`,
     romDialogSkippedNote: ({ names }) => `非対応のためスキップ: ${names}`,
+    romDialogRejectedNote: ({ items }) =>
+      `登録できませんでした(fmgenが受け付けない形式のまま登録すると、そのファイルだけでなくリズム音源6本すべてが無音になるため、登録自体を中止しました): ${items}`,
+    rhythmRejectReasonNotRiffWave: () => 'RIFF/WAVE形式のファイルではありません。',
+    rhythmRejectReasonNoFmtChunk: () => '標準的なWAVと構造が異なり、fmtチャンクの位置を認識できません。',
+    rhythmRejectReasonNotPcm: () => 'リニアPCM形式ではありません(圧縮WAV等は非対応)。',
+    rhythmRejectReasonNotMono: () => 'モノラルのWAVではありません(ステレオ等は非対応)。',
+    rhythmRejectReasonNoDataChunk: () => 'dataチャンクが見つかりません。',
+    rhythmRejectReasonTooManySamples: () => 'サンプル数が多すぎます(長すぎるWAVです)。',
+    rhythmRejectReasonNot16Bit: () => '16bitのリニアPCMではありません。モノラル・16bit・リニアPCMのWAVのみ登録できます。',
     overlayLibraryBtn: () => '保存済みディスクから起動',
     toolbarDiskLibrary: () => 'ディスクライブラリ',
     libraryDialogTitle: () => 'ディスクライブラリ',
@@ -869,7 +887,7 @@ const STRINGS: Record<Lang, Dict> = {
     toolbarRomManager: () => 'ROM Files',
     romDialogTitle: () => 'Register ROM/Asset Files',
     romDialogDescription: () =>
-      'Register the ROM/asset files you use with the desktop NP2kai (bios.rom, itf.rom, sound.rom, font.rom, 2608_*.wav, etc.). They are saved only in your browser (IndexedDB) and automatically loaded on future starts. Nothing is sent to any server.',
+      'Register the ROM/asset files you use with the desktop NP2kai (bios.rom, itf.rom, sound.rom, font.rom, etc.). They are saved only in your browser (IndexedDB) and automatically loaded on future starts. Nothing is sent to any server. YM2608 rhythm samples (2608_*.wav) already work without registering anything, since a substitute set is bundled (it is not the real YM2608 chip\'s rhythm sound, but an alternative crafted by its author). If you have the real thing, registering 2608_*.wav will take priority over the bundled substitute.',
     romDialogSelectFiles: () => 'Select Files',
     romDialogDropHint: () => 'You can also drag & drop files onto this dialog to register them.',
     romDialogListEmpty: () => 'No files registered yet.',
@@ -880,6 +898,16 @@ const STRINGS: Record<Lang, Dict> = {
     romDialogSaved: ({ saved, skipped }) =>
       `Registered ${saved} file(s).${skipped > 0 ? ` (${skipped} skipped as unsupported)` : ''}`,
     romDialogSkippedNote: ({ names }) => `Skipped unsupported files: ${names}`,
+    romDialogRejectedNote: ({ items }) =>
+      `Not registered (fmgen cannot load this format, and registering it as-is would silence not just this file but all 6 rhythm samples, so registration was cancelled): ${items}`,
+    rhythmRejectReasonNotRiffWave: () => 'Not a RIFF/WAVE file.',
+    rhythmRejectReasonNoFmtChunk: () => "Structure differs from a standard WAV; can't locate the fmt chunk.",
+    rhythmRejectReasonNotPcm: () => 'Not linear PCM (compressed WAV is unsupported).',
+    rhythmRejectReasonNotMono: () => 'Not a mono WAV (stereo etc. is unsupported).',
+    rhythmRejectReasonNoDataChunk: () => 'No data chunk found.',
+    rhythmRejectReasonTooManySamples: () => 'Too many samples (the WAV is too long).',
+    rhythmRejectReasonNot16Bit: () =>
+      'Not 16-bit linear PCM. Only mono, 16-bit, linear PCM WAV files can be registered.',
     overlayLibraryBtn: () => 'Boot from Saved Disk',
     toolbarDiskLibrary: () => 'Disk Library',
     libraryDialogTitle: () => 'Disk Library',

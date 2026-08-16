@@ -317,6 +317,23 @@ excluded via `.gitignore` and never committed.
   [lpproj/fdkernel](https://github.com/lpproj/fdkernel) and
   [lpproj/freecom_dbcs2](https://github.com/lpproj/freecom_dbcs2). See
   `public/freedos/README.txt` for details.
+- `public/rhythm/2608_bd.wav`, `2608_sd.wav`, `2608_top.wav`, `2608_hh.wav`,
+  `2608_tom.wav`, and `2608_rim.wav` are a bundled substitute for the YM2608
+  rhythm sound source samples, used so rhythm playback is not silent even
+  when no real samples are registered ("YM2608風リズム音源音色データ Ver.2.0",
+  by メモル / Takanori YOSHIMURA, memoru@kisoba.info, distributed from
+  <https://sound.jp/jaime/fmp_top.html> — archived at
+  <https://sound.jp/jaime/files/2608modoki2.zip>). Per the author's own
+  terms (quoted from the bundled text, translated): "Free to distribute,
+  reprint, or embed in software, for free or for a fee. If you embed it in
+  software or a sample pack, a note of what title used it would be
+  appreciated." **These are not extracted from a real YM2608 chip's ROM.**
+  As the author states, they were assembled by editing samples from other
+  sound sources to resemble the YM2608's rhythm sounds, and the author
+  explicitly notes the waveforms are fundamentally different from the real
+  chip's. If you register real `2608_*.wav` files via the ROM/asset dialog,
+  they take priority over this bundled substitute (see
+  [src/api/roms.ts](src/api/roms.ts)).
 - Users are responsible for legally obtaining and using any disk images they
   load via the `hdd`/`fd1`/`fd2` parameters or drag & drop.
 

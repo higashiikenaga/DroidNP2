@@ -27,7 +27,14 @@ import {
 } from './core/module.ts';
 import { getWorkletAudioContext, startWorkletAudio } from './core/audio.ts';
 import { describeError, getLang, t, type StringKey } from './ui/strings.ts';
-import { deleteRom, listRoms, loadRomsForBoot, saveRomFiles } from './api/roms.ts';
+import {
+  deleteRom,
+  listRoms,
+  loadBundledRhythmWavs,
+  loadRomsForBoot,
+  mergeRhythmDefaults,
+  saveRomFiles,
+} from './api/roms.ts';
 import { createFormattedFd, createFormattedHdd } from './api/fat.ts';
 import type { FmTarget } from './ui/filemanager.ts';
 import {
@@ -688,7 +695,9 @@ async function bootWithImages(images: {
   }
 
   try {
-    const roms = await loadRomsForBoot();
+    // リズム波形は利用者登録が優先。未登録の名前だけ同梱の代替波形(public/rhythm/)で埋める
+    // (README/README.jaのLicense and bundled content参照。実チップROM由来ではない代替音)。
+    const roms = mergeRhythmDefaults(await loadRomsForBoot(), await loadBundledRhythmWavs());
 
     await np2.boot({
       hdd: images.hdd
