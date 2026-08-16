@@ -288,7 +288,15 @@ FDD/HDD行は横スクロールにせず、フッター実幅320px以下でド�
 - **Phase 3.5**: ローカルROM/素材ファイル登録 — 実装済み（「…」直結行の「ROM登録」ダイアログで
   bios.rom / itf.rom / sound.rom / font.rom / 2608_*.wav 等を登録。IndexedDB(キー`rom:<name>`)に
   ブラウザ内保存し、起動時に MEMFS ルートへ自動注入。font.rom 登録時は cfg の fontfile を
-  /font.rom に切替。ROMは読み取り専用扱いで永続化ループ対象外）
+  /font.rom に切替。ROMは読み取り専用扱いで永続化ループ対象外。YM2608リズム波形6本
+  (`2608_*.wav`)だけは、WebNP2が固定で使うfmgenコア(`buildCfg()`の`USEFMGEN=true`)が
+  大文字名(`2608_BD.WAV`等)しか探さないため、preRunでMEMFSルートへ小文字名・大文字名の
+  両方を複製して書く。同梱の代替波形(`public/rhythm/`、作者制作・実チップROM非由来)を
+  `mergeRhythmDefaults()`で足し合わせ、利用者登録がある名前はそちらを優先し同梱側は使わない。
+  登録時は`checkRhythmWav()`でfmgenの読み取り条件(RIFF/WAVE、fmtチャンク、リニアPCM、
+  モノラル、dataチャンク存在、サンプル数上限、16bit)を検査し、満たさなければ保存せず理由を
+  表示する。fmgenは6本のうち1本でも不正だと全リズムを無音にし、dataチャンクが無いWAVは
+  走査ループがEOFガード無しでハングしうるため、フォールバックさせず登録時点で弾く）
 - **Phase 3.6**: ホスト側テキスト送信(全角対応) — 実装済み（「…」→「入力」→「テキスト送信」で
   チャット風入力バー表示。ホストIMEで変換済みテキストをTextDecoder('shift_jis')逆引きで
   SJIS化し、PC-98キーボードBIOSリングバッファ(0x502)へ直接注入。ゲスト側FEP不要で

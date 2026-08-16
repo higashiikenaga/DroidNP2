@@ -871,6 +871,15 @@
               組み込まれます。サーバーには送信されません。反映にはページの
               再読み込みが必要です。
             </p>
+            <p>
+              リズム音(<code>2608_*.wav</code>)は代替波形を同梱しているため、
+              <strong>登録しなくてもリズムパートは鳴ります</strong>。ただし同梱の音は
+              実機YM2608のリズム音そのものではなく代替音です。実機から吸い出した
+              本物の<code>2608_*.wav</code>を登録すると、そちらが優先して使われます。
+              登録できるのは<strong>モノラル・リニアPCM・16bit</strong>のWAVのみで、
+              条件を満たさないファイルは登録されず理由が表示されます(6本まとめて
+              無音になるのを防ぐためです)。
+            </p>
           </div>
           <div class="lang-en">
             <h2>Registering ROM/asset files</h2>
@@ -882,6 +891,18 @@
               only in your browser (IndexedDB) and automatically loaded on future
               starts. Nothing is sent to any server. Reload the page for changes
               to take effect.
+            </p>
+            <p>
+              Rhythm sounds (<code>2608_*.wav</code>) already come with substitute
+              samples bundled in, so <strong>the rhythm part plays even if you
+              never register anything</strong>. Those bundled sounds are not the
+              real YM2608 rhythm samples, though — they are a substitute. If you
+              register genuine <code>2608_*.wav</code> files dumped from real
+              hardware, those take priority instead. Only <strong>mono, linear
+              PCM, 16-bit</strong> WAV files can be registered; files that don't
+              meet this will be rejected with a reason shown, rather than
+              registered (this prevents all six samples from going silent
+              together).
             </p>
           </div>
         </section>
