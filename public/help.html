@@ -609,9 +609,10 @@
               <strong>2本指タップ</strong>は右クリックです。
             </p>
             <p>
-              ツールバーのキーボードアイコンから、テンキーを含むPC-98配列のソフトキーボードを
-              開閉できます。SHIFT/CTRL/GRPHは1回タップすると次の1打だけに適用される
-              ワンショット(点灯表示で確認できます)、CAPS/かなはロックトグルです。
+              ツールバーのキーボードアイコンから、PC-98配列のソフトキーボードを開閉できます。
+              SHIFT/CTRL/GRPHは1回タップすると次の1打だけに適用されるワンショット
+              (点灯表示で確認できます)、CAPS/かなはロックトグルです。テンキーブロックは
+              既定では非表示で、キーボード内の「テンキー」キーで開閉します。
             </p>
             <p>
               実機と同様、キーを押しっぱなしにすると一定時間後から連続入力される
@@ -628,11 +629,24 @@
               バーチャルパッドは縦持ちでは画面の下、横持ちでは左右の余白へ自動配置されます。
               ダーク背景の上へ表示されるため、白系の操作部も見分けやすくなっています。
               横持ちで画面が狭い場合、FDD/HDDのドライブ名を残したまま操作ボタンが複数段に折り返されます。
-              ソフトキーボードかパッドの表示中だけ、キーボードボタン直後に⌨／🎮の切替チップが現れます。
+              ソフトキーボード・パッド・バーチャルトラックパッドいずれかの表示中だけ、
+              キーボードボタン直後に⌨／🎮／🖱の切替チップが現れます。
               パッド表示中に🎮をもう一度押すと、プロファイル選択と「割当を編集」を開けます。
+              入力パネルが開いている間は画面全体が1画面に収まるよう縮小され、FDスロット行は
+              一時的に隠れます(ディスクの入れ替えはパネルを閉じてから行ってください)。
             </p>
             <img src="./help/virtual-pad.png" alt="スマートフォン縦持ちでゲーム画面の下に表示されたバーチャルパッド" />
             <img src="./help/virtual-pad-landscape.png" alt="スマートフォン横持ちでゲーム画面の左右に表示されたバーチャルパッド" />
+            <p>
+              🖱を押すとバーチャルトラックパッド帯が開きます。<strong>1本指でなぞる</strong>と
+              カーソルの相対移動、<strong>短いタップ</strong>で左クリック、
+              <strong>2本指タップ</strong>で右クリック、<strong>約450ms静止させてからの
+              長押しドラッグ</strong>で左ボタンドラッグです。ゲーム画面(canvas)を直接触る
+              従来の絶対追従タッチもそのまま使えます。トラックパッドの慣例である2本指ドラッグ
+              (ホイール相当)は、PC-98バスマウスに左右2ボタンしかなく受け取り先が無いため
+              未対応です。
+            </p>
+            <img src="./help/virtual-trackpad.png" alt="スマートフォンでゲーム画面の下に表示されたバーチャルトラックパッド" />
           </div>
           <div class="lang-en">
             <h2>Using on a smartphone</h2>
@@ -651,7 +665,8 @@
               The keyboard icon in the toolbar opens/closes a PC-98 layout
               on-screen keyboard. SHIFT/CTRL/GRPH are one-shot modifiers that
               apply to only the next keystroke (shown lit while active), while
-              CAPS/Kana are lock toggles. The PC-98 numeric keypad is included.
+              CAPS/Kana are lock toggles. The numeric keypad block is hidden by
+              default; toggle it with the “Tenkey” key inside the keyboard panel.
             </p>
             <p>
               Just like the real hardware, holding a key down triggers key
@@ -670,12 +685,29 @@
               In portrait, the Virtual Pad appears below the screen; in landscape,
               it uses the left and right margins. The dark page background keeps its
               light controls visible. When space is tight in landscape, each drive name
-              remains visible while its FDD/HDD action buttons wrap onto extra rows. A ⌨ / 🎮 switch appears immediately
-              after the keyboard button only while either panel is visible. Press 🎮
-              again while the pad is active to choose a profile or edit assignments.
+              remains visible while its FDD/HDD action buttons wrap onto extra rows. A
+              ⌨ / 🎮 / 🖱 switch appears immediately after the keyboard button whenever
+              any one of the on-screen keyboard, Virtual Pad, or Virtual Trackpad is
+              visible. Press 🎮 again while the pad is active to choose a profile or
+              edit assignments. While any input panel is open, the layout shrinks to
+              fit one screen, which temporarily hides the floppy slot row (close the
+              panel before swapping disks).
             </p>
             <img src="./help/virtual-pad-en.png" alt="Virtual Pad below the game screen on a phone in portrait orientation" />
             <img src="./help/virtual-pad-landscape-en.png" alt="Virtual Pad on both sides of the game screen on a phone in landscape orientation" />
+            <p>
+              Tapping 🖱 opens the Virtual Trackpad strip. A
+              <strong>one-finger drag</strong> moves the cursor relatively, a
+              <strong>short tap</strong> is a left click, a
+              <strong>two-finger tap</strong> is a right click, and a
+              <strong>press-and-hold for about 450ms then drag</strong> performs a
+              left-button drag. The classic absolute-tracking touch on the emulator
+              canvas itself still works alongside it. The usual trackpad gesture for
+              scrolling (a two-finger drag) is not supported, since the PC-98 bus
+              mouse only has two buttons and nothing on the guest side would
+              receive it.
+            </p>
+            <img src="./help/virtual-trackpad-en.png" alt="Virtual Trackpad shown below the game screen on a phone" />
           </div>
         </section>
 
@@ -1130,8 +1162,10 @@
             icon: 'M3 7h18a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1z M6 10h.01 M9 10h.01 M12 10h.01 M15 10h.01 M18 10h.01 M6 13h.01 M9 13h.01 M12 13h.01 M15 13h.01 M18 13h.01 M8 16h8',
             ja: 'ソフトキーボード',
             en: 'On-screen keyboard',
-            descJa: 'テンキーを含むPC-98配列のソフトキーボードを開閉します。表示中は直後に⌨／🎮切替チップが現れます。',
-            descEn: 'Opens/closes the PC-98 layout on-screen keyboard, including the numeric keypad. While a panel is open, a ⌨ / 🎮 switch appears beside it.',
+            descJa:
+              'PC-98配列のソフトキーボードを開閉します(テンキーは既定非表示。キー内の「テンキー」で開閉)。表示中は直後に⌨／🎮／🖱切替チップが現れます。',
+            descEn:
+              'Opens/closes the PC-98 layout on-screen keyboard (the numeric keypad is hidden by default; toggle it with the “Tenkey” key). While a panel is open, a ⌨ / 🎮 / 🖱 switch appears beside it.',
           },
           {
             icon: 'M6 8h12a4 4 0 0 1 4 4.5l-.8 4a2.5 2.5 0 0 1-4.4 1.1L15 15H9l-1.8 2.6a2.5 2.5 0 0 1-4.4-1.1l-.8-4A4 4 0 0 1 6 8z M7 12h3 M8.5 10.5v3 M16 11h.01 M18 13h.01',

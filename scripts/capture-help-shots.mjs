@@ -380,6 +380,18 @@ async function run() {
       await page.screenshot({ path: join(OUT_DIR, `virtual-pad-landscape${suffix}.png`), fullPage: true });
       console.log(`  wrote virtual-pad-landscape${suffix}.png`);
 
+      // --- virtual-trackpad: スマホ縦持ちで画面下に表示されたバーチャルトラックパッド帯 ---
+      await page.setViewport({ width: 375, height: 812, deviceScaleFactor: 2 });
+      await sleep(800);
+      await page.evaluate(() => {
+        const trackpad = document.querySelectorAll('.panel-switch-btn')[2];
+        if (!trackpad) throw new Error('virtual trackpad switch not found');
+        trackpad.click();
+      });
+      await sleep(1000);
+      await page.screenshot({ path: join(OUT_DIR, `virtual-trackpad${suffix}.png`), fullPage: true });
+      console.log(`  wrote virtual-trackpad${suffix}.png`);
+
       await clearLibrary(page);
       await page.close();
     }

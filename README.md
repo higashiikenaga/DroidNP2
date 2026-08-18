@@ -166,8 +166,9 @@ highlighted.
 
 ### Input controls
 
-- The on-screen keyboard includes the PC-98 numeric keypad, so software that
-  requires tenkey movement remains usable on laptops without a physical keypad.
+- The on-screen keyboard includes the PC-98 numeric keypad, but it is hidden by
+  default; toggle it with the “Tenkey” key inside the keyboard panel (useful on
+  laptops without a physical keypad, for software that needs tenkey movement).
 - Open **More (…) → Input → Input Settings** to configure three tabs:
   **Gamepad**, **Keyboard**, and **Virtual Pad**. Each tab uses the same PC-98
   keyboard picker for choosing output keys.
@@ -177,9 +178,19 @@ highlighted.
 - The Virtual Pad is intended primarily for phones and tablets. In portrait it
   appears below the emulator screen; in landscape its controls occupy the left
   and right margins so fingers do not cover the game.
-- While the on-screen keyboard or Virtual Pad is visible, a **⌨ / 🎮** switch
-  appears immediately after the keyboard button. Press the active 🎮 side again
-  to choose a Virtual Pad profile or edit assignments.
+- The Virtual Trackpad turns a one-finger drag into relative cursor movement, a
+  short tap into a left click, a two-finger tap into a right click, and a
+  press-and-hold (about 450ms without moving) followed by a drag into a
+  left-button drag. The classic absolute-tracking touch on the emulator canvas
+  itself still works alongside it. A two-finger drag (the usual trackpad
+  gesture for scrolling) is not implemented, since the PC-98 bus mouse only has
+  two buttons and nothing on the guest side would receive it.
+- While the on-screen keyboard, Virtual Pad, or Virtual Trackpad is visible, a
+  **⌨ / 🎮 / 🖱** switch appears immediately after the keyboard button. Press
+  the active 🎮 side again to choose a Virtual Pad profile or edit assignments.
+  While any input panel is open, the layout shrinks to fit one screen, which
+  temporarily hides the floppy slot row (close the panel before swapping
+  disks).
 
 The toolbar keeps Reset, Fullscreen, On-screen Keyboard, Screenshot, and More
 (…) visible. The More menu groups less frequent actions under Input, Disk, and
@@ -371,8 +382,9 @@ excluded via `.gitignore` and never committed.
 - Disk image download, fullscreen, Japanese/English UI toggle
 - Disk library organization (.zip/.lzh import, multi-disk folders, renaming,
   and an insert-from-library menu on each FD slot)
-- Smartphone support (touch controls, PC-98 on-screen keyboard with tenkey,
-  and an automatically placed Virtual Pad)
+- Smartphone support (touch controls, PC-98 on-screen keyboard with a
+  toggleable tenkey block, an automatically placed Virtual Pad, and a
+  Virtual Trackpad)
 - Dark `#101010` page background, keeping the off-screen Virtual Pad controls visible
 - Physical gamepad mapping and named host-key remapping profiles
 - Three-tab Input Settings dialog with a shared PC-98 keyboard picker
