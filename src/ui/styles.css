@@ -1138,6 +1138,46 @@ footer.app-footer a {
   touch-action: manipulation;
 }
 .kbd-panel.hidden { display: none; }
+
+/*
+ * バーチャルトラックパッド(仮想キーボード/バーチャルパッドに次ぐ「入力パネル」の第3の種類。
+ * src/ui/virtual-trackpad.ts 参照)。仮想キーボードと同じ「画面とコンソールバーの間の帯」に
+ * 置く。.stage へ重ねない理由は、操作中の指がゲスト画面を隠さないようにすることが
+ * この機能の目的そのものだから(canvas を直接タッチの受け口にしていた既存の絶対追従の
+ * 難点がまさにそれ)。幅は帯いっぱい、高さは画面比率に対して頭打ちを設けて縦長画面で
+ * 伸びすぎないようにする。
+ */
+.virtual-trackpad {
+  position: relative;
+  box-sizing: border-box;
+  height: min(34vh, 240px);
+  padding: 8px;
+  background: linear-gradient(var(--footer-bg-top), var(--footer-bg-bottom));
+  border-top: 1px solid var(--footer-border);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  overscroll-behavior: contain;
+}
+
+/* 操作面であることが一目で分かるよう、内側をわずかに明るくしたうえで一段凹ませる
+   (左上を影・右下をハイライトにする定番の陰影)。実機のトラックパッドと同じく
+   「ここを触る」と説明なしで伝わる形にするための装飾で、当たり判定は親要素が持つ。 */
+.virtual-trackpad::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow:
+    inset 2px 2px 3px rgba(0, 0, 0, 0.55),
+    inset -2px -2px 3px rgba(255, 255, 255, 0.11);
+  pointer-events: none;
+}
+
+.virtual-trackpad.hidden { display: none; }
+
 .kbd-row { display: flex; gap: 3px; }
 .kbd-key {
   flex: 1 1 0;

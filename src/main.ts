@@ -573,6 +573,65 @@ function stopMouseTrackTimer(): void {
   mouseTrackTarget = null;
 }
 
+// --- バーチャルトラックパッド --------------------------------------------------
+// 入力パネルの第3の種類(ui/virtual-trackpad.ts)。ジェスチャの解釈(タップ/2本指タップ/
+// 長押しドラッグ)はui/touch-mouse.tsの純ロジックが受け持ち、ここはCSSピクセル→ゲストの
+// ドット数への換算と、クリックパルスのタイミング制御だけを行う。
+/**
+ * 指のCSSピクセル移動量→ゲストのドット数への換算倍率。canvas の表示倍率
+ * (canvas.width / canvas.clientWidth)は使わない。トラックパッドは canvas と無関係な
+ * 専用の帯であり、モバイルでは canvas の表示倍率が変動する(640x400/640x480の切替や
+ * ウィンドウ幅で整数倍が変わる)。これをそのまま感度に使うと表示倍率次第で指の移動量に
+ * 対するカーソル速度が変わってしまうため、固定倍率にして構造的に避ける。
+ */
+const TRACKPAD_SCALE = 1.5;
+/** トラックパッド操作中に送信しきれず持ち越す残差(ドット)。ストローク終了で捨てる。 */
+let trackpadResidX = 0;
+let trackpadResidY = 0;
+
+/** virtual-trackpad.ts からの相対移動(CSSピクセル)をゲストのドット数へ換算して送る。 */
+function onTrackpadMove(dx: number, dy: number): void {
+  // 古い絶対位置の目標(マウスの追従モード側)が残っていると閉ループが相対移動と
+  // 綱引きするので捨てる。
+  mouseTrackTarget = null;
+  trackpadResidX += dx * TRACKPAD_SCALE;
+  trackpadResidY += dy * TRACKPAD_SCALE;
+  // ゲスト側の消費(coreMousePending)が詰まっている間は送らずに残差へ貯める
+  // (マウス追従タイマーのstartMouseTrackTimerと同じ背圧制御)。
+  if (coreMousePending() > 96) return;
+  const clamp = (v: number): number => Math.max(-64, Math.min(64, v));
+  const sendX = clamp(Math.trunc(trackpadResidX));
+  const sendY = clamp(Math.trunc(trackpadResidY));
+  if (sendX === 0 && sendY === 0) return;
+  trackpadResidX -= sendX;
+  trackpadResidY -= sendY;
+  coreMouseMove(sendX, sendY);
+}
+
+/** 長押しドラッグの押し込み/解放。button: 0=左/1=右。 */
+function onTrackpadButton(button: 0 | 1, down: boolean): void {
+  coreMouseButton(button, down ? 1 : 0);
+}
+
+/** トラックパッドのタップ(クリック要求)をパルス化(押して離す)して送る。 */
+function onTrackpadTap(button: 0 | 1): void {
+  queueTouchOp(async () => {
+    // 相対移動なので絶対追従(trackSettle)の収束待ちは不要。押下時間はcanvas直タッチの
+    // onTouchClick(60ms)より長めの100msにして、コアがボタンを読み落とさないようにする。
+    coreMouseButton(button, 1);
+    await sleep(100);
+    coreMouseButton(button, 0);
+    // 連続タップ(ダブルクリック相当)を押しっぱなしと区別できるよう間隔を空ける。
+    await sleep(60);
+  });
+}
+
+/** ストローク終了(全指離れた/キャンセル/パネルを閉じた)の通知。次のストロークへ残差を持ち越さない。 */
+function onTrackpadStrokeEnd(): void {
+  trackpadResidX = 0;
+  trackpadResidY = 0;
+}
+
 // SDLのAudioContextに加え、AudioWorklet経路が有効なときはその専用コンテキストも
 // resume/バナー判定の対象にする(実際に音が出るのはワークレット側のため)。
 function audioContexts(): AudioContext[] {
@@ -1827,6 +1886,10 @@ function init(): void {
       onVirtualKeyReleaseAll: () => sharedKeyInput.releaseSource('softkeyboard'),
       onVirtualPadSetEnabled: (enabled) => persistVpadStore(setVpadEnabled(vpadStore, enabled)),
       onVirtualPadReleaseAll: () => sharedKeyInput.releaseSource('vpad'),
+      onTrackpadMove: (dx, dy) => onTrackpadMove(dx, dy),
+      onTrackpadButton: (button, down) => onTrackpadButton(button, down),
+      onTrackpadTap: (button) => onTrackpadTap(button),
+      onTrackpadStrokeEnd: () => onTrackpadStrokeEnd(),
       onTouchClick: (x, y, button) =>
         queueTouchOp(async () => {
           mouseTrackTarget = { x, y };

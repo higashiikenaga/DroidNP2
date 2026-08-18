@@ -9,6 +9,8 @@ import { buildFileManagerDialog, type FileManagerCallbacks } from './filemanager
 import { buildDebuggerDialog, type DebuggerCallbacks } from './debugger.ts';
 import { buildGamepadDialog, type GamepadDialogCallbacks, type HostKeyDialogCallbacks, type VpadDialogCallbacks } from './gamepad-ui.ts';
 import { applyInputPanelTransition, inputPanelUiState, type InputPanelKind } from './input-panel.ts';
+import { createVirtualTrackpad, type VirtualTrackpad, type VirtualTrackpadCallbacks } from './virtual-trackpad.ts';
+import type { TouchMouseButton } from './touch-mouse.ts';
 import {
   ALWAYS_VISIBLE_ACTIONS,
   backToOverflowRoot,
@@ -102,6 +104,14 @@ export interface PlayerCallbacks {
   onVirtualPadSetEnabled: (enabled: boolean) => void;
   /** バーチャルパッド由来の押下を一括解放する。 */
   onVirtualPadReleaseAll: () => void;
+  /** バーチャルトラックパッドの相対移動(CSSピクセル)。ゲストのドット数への換算はmain.ts側で行う。 */
+  onTrackpadMove: (dx: number, dy: number) => void;
+  /** バーチャルトラックパッドの長押しドラッグの押し込み/解放。button: 0=左/1=右。 */
+  onTrackpadButton: (button: 0 | 1, down: boolean) => void;
+  /** バーチャルトラックパッドのタップ(クリック要求)。パルス化とタイミングはmain.ts側で行う。 */
+  onTrackpadTap: (button: 0 | 1) => void;
+  /** バーチャルトラックパッドのストローク終了(main.ts側の送信残差を破棄する)。 */
+  onTrackpadStrokeEnd: () => void;
   /** canvasへのタッチ操作: 短いタップ=クリック(button: 0=左/1=右)。 */
   onTouchClick: (x: number, y: number, button: 0 | 1) => void;
   /** canvasへの長押し開始(左ドラッグ開始)。 */
@@ -391,6 +401,8 @@ interface RescaleChrome {
   progressWrap: HTMLElement;
   /** PC-98配列ソフトキーボードパネル(表示中のみ高さを加算)。 */
   kbdPanel: HTMLElement;
+  /** バーチャルトラックパッドパネル(表示中のみ高さを加算)。kbdPanelと排他だが両方渡しておく。 */
+  trackpadPanel: HTMLElement;
 }
 
 /**
@@ -421,6 +433,7 @@ function rescale(canvas: HTMLCanvasElement, stage: HTMLElement, card: HTMLElemen
   const gapsInApp = Math.max(0, visibleAppChildren - 1) * gap;
 
   const kbdVisible = !chrome.kbdPanel.classList.contains('hidden');
+  const trackpadVisible = !chrome.trackpadPanel.classList.contains('hidden');
 
   const reservedHeight =
     (chrome.pageHeader?.getBoundingClientRect().height ?? 0) +
@@ -429,6 +442,7 @@ function rescale(canvas: HTMLCanvasElement, stage: HTMLElement, card: HTMLElemen
     chrome.statusPanel.getBoundingClientRect().height +
     (progressActive ? chrome.progressWrap.getBoundingClientRect().height : 0) +
     (kbdVisible ? chrome.kbdPanel.getBoundingClientRect().height : 0) +
+    (trackpadVisible ? chrome.trackpadPanel.getBoundingClientRect().height : 0) +
     appPaddingV +
     gapsInApp;
 
@@ -501,10 +515,16 @@ export function buildPlayerUI(
   const vpadOverlay = el('div', { class: 'virtual-pad hidden' });
   const btnPanelKeyboard = iconButton(ICONS.keyboard, t('inputPanelSwitchKeyboard'), 'panel-switch-btn');
   const btnPanelPad = iconButton(ICONS.gamepad, t('inputPanelSwitchPad'), 'panel-switch-btn');
+  const btnPanelTrackpad = iconButton(ICONS.mouse, t('inputPanelSwitchTrackpad'), 'panel-switch-btn');
   btnPanelKeyboard.setAttribute('aria-pressed', 'false');
   btnPanelPad.setAttribute('aria-pressed', 'false');
   btnPanelPad.setAttribute('aria-haspopup', 'menu');
-  const inputPanelSwitch = el('div', { class: 'input-panel-switch hidden' }, [btnPanelKeyboard, btnPanelPad]);
+  btnPanelTrackpad.setAttribute('aria-pressed', 'false');
+  const inputPanelSwitch = el('div', { class: 'input-panel-switch hidden' }, [
+    btnPanelKeyboard,
+    btnPanelPad,
+    btnPanelTrackpad,
+  ]);
   const stage = el('div', { class: 'stage' }, [canvas, overlay, muteBanner, vpadOverlay]);
 
   const btnMachineReset = iconButton(ICONS.machineReset, t('toolbarMachineReset'));
@@ -873,11 +893,40 @@ export function buildPlayerUI(
   }
   kbdRowEls.forEach((rowEl) => kbdPanel.append(rowEl));
 
+  // バーチャルトラックパッド(入力パネルの第3の種類)。ソフトキーボードと同じく
+  // 「画面とコンソールバーの間の帯」として常設する(hiddenで開閉)。
+  const trackpadPanel = el('div', { class: 'virtual-trackpad hidden' });
+  const virtualTrackpad: VirtualTrackpad = createVirtualTrackpad(trackpadPanel, {
+    moveBy: (dx, dy) => callbacks.onTrackpadMove(dx, dy),
+    buttonDown: (button: TouchMouseButton) => callbacks.onTrackpadButton(button === 'left' ? 0 : 1, true),
+    buttonUp: (button: TouchMouseButton) => callbacks.onTrackpadButton(button === 'left' ? 0 : 1, false),
+    tap: (button: TouchMouseButton) => callbacks.onTrackpadTap(button === 'left' ? 0 : 1),
+    strokeEnd: () => callbacks.onTrackpadStrokeEnd(),
+  } satisfies VirtualTrackpadCallbacks);
+
+  // トラックパッドの長押し判定は内部にタイマーを持たず、表示中だけ動かすrAFループから
+  // step()を毎フレーム呼んでもらう方式(touch-mouse.tsのupdate()参照)。このリポジトリには
+  // 常時回るrAFループが無いため、表示/非表示に合わせて自前で回す/止める。
+  let trackpadStepRafId: number | null = null;
+  function trackpadStepLoop(): void {
+    virtualTrackpad.step(performance.now());
+    trackpadStepRafId = requestAnimationFrame(trackpadStepLoop);
+  }
+  function startTrackpadStepLoop(): void {
+    if (trackpadStepRafId !== null) return;
+    trackpadStepRafId = requestAnimationFrame(trackpadStepLoop);
+  }
+  function stopTrackpadStepLoop(): void {
+    if (trackpadStepRafId === null) return;
+    cancelAnimationFrame(trackpadStepRafId);
+    trackpadStepRafId = null;
+  }
+
   // WebMSX風: カードは実行画面(キャンバス) + グレーのコンソールバー(ツールバー/FDスロット)のみ。
   // 黒いページヘッダー/グレーのページフッターは index.html 側の全幅要素として別に存在する。
   const footerBar = el('div', { class: 'console-footer' }, [toolbar, fdSlots, overflowSources]);
   const card = el('div', { class: 'console-card' });
-  card.append(stage, kbdPanel, footerBar);
+  card.append(stage, kbdPanel, trackpadPanel, footerBar);
 
   // ROM登録ダイアログ (起動前後どちらでも操作可能なグローバルモーダル)。
   const romDescription = el('p', { class: 'rom-modal-description' }, [t('romDialogDescription')]);
@@ -1431,10 +1480,11 @@ export function buildPlayerUI(
   let virtualPadVisible = false;
   let inputPanelPreference: InputPanelKind = 'keyboard';
 
-  function currentInputPanelState(): { keyboardVisible: boolean; padVisible: boolean } {
+  function currentInputPanelState(): { keyboardVisible: boolean; padVisible: boolean; trackpadVisible: boolean } {
     return {
       keyboardVisible: !kbdPanel.classList.contains('hidden'),
       padVisible: virtualPadVisible,
+      trackpadVisible: virtualTrackpad.isVisible(),
     };
   }
 
@@ -1443,6 +1493,7 @@ export function buildPlayerUI(
     inputPanelSwitch.classList.toggle('hidden', !state.chipVisible);
     btnPanelKeyboard.setAttribute('aria-pressed', state.keyboardPressed ? 'true' : 'false');
     btnPanelPad.setAttribute('aria-pressed', state.padPressed ? 'true' : 'false');
+    btnPanelTrackpad.setAttribute('aria-pressed', state.trackpadPressed ? 'true' : 'false');
     btnVirtualKbd.classList.toggle('active', state.chipVisible);
     btnVirtualKbd.setAttribute('aria-pressed', state.chipVisible ? 'true' : 'false');
   }
@@ -1460,8 +1511,14 @@ export function buildPlayerUI(
         heldOneshot.clear();
       },
       releasePad: () => callbacks.onVirtualPadReleaseAll(),
+      releaseTrackpad: () => virtualTrackpad.releaseAll(),
       setKeyboardVisible: (visible) => kbdPanel.classList.toggle('hidden', !visible),
       setPadVisible: (visible) => callbacks.onVirtualPadSetEnabled(visible),
+      setTrackpadVisible: (visible) => {
+        virtualTrackpad.setVisible(visible);
+        if (visible) startTrackpadStepLoop();
+        else stopTrackpadStepLoop();
+      },
     });
     if (target !== 'closed') inputPanelPreference = target;
     syncInputPanelUi();
@@ -1524,6 +1581,10 @@ export function buildPlayerUI(
     } else {
       switchInputPanel('pad');
     }
+  });
+  btnPanelTrackpad.addEventListener('click', (event) => {
+    event.stopPropagation();
+    switchInputPanel('trackpad');
   });
   inputPanelMenu.addEventListener('click', (event) => event.stopPropagation());
   for (const eventName of ['keydown', 'keyup', 'keypress'] as const) {
@@ -2010,6 +2071,7 @@ export function buildPlayerUI(
     statusPanel,
     progressWrap,
     kbdPanel,
+    trackpadPanel,
   };
   window.addEventListener('resize', () => rescale(canvas, stage, card, rescaleChrome));
   rescale(canvas, stage, card, rescaleChrome);
@@ -2040,6 +2102,7 @@ export function buildPlayerUI(
   chromeObserver.observe(progressWrap);
   chromeObserver.observe(footerBar);
   chromeObserver.observe(kbdPanel);
+  chromeObserver.observe(trackpadPanel);
   if (rescaleChrome.pageHeader) chromeObserver.observe(rescaleChrome.pageHeader);
   if (rescaleChrome.pageFooter) chromeObserver.observe(rescaleChrome.pageFooter);
 
@@ -2135,6 +2198,11 @@ export function buildPlayerUI(
         if (!kbdPanel.classList.contains('hidden')) callbacks.onVirtualKeyReleaseAll();
         kbdPanel.classList.add('hidden');
         heldOneshot.clear();
+        if (virtualTrackpad.isVisible()) {
+          virtualTrackpad.releaseAll();
+          virtualTrackpad.setVisible(false);
+          stopTrackpadStepLoop();
+        }
         syncInputPanelUi();
       }
       // FD挿入は起動前=そのFDから起動(main.ts側で分岐)、起動後=ライブ交換のため常時有効。
@@ -2261,6 +2329,8 @@ export function buildPlayerUI(
       btnPanelKeyboard.setAttribute('aria-label', t('inputPanelSwitchKeyboard'));
       btnPanelPad.title = t('inputPanelSwitchPad');
       btnPanelPad.setAttribute('aria-label', t('inputPanelSwitchPad'));
+      btnPanelTrackpad.title = t('inputPanelSwitchTrackpad');
+      btnPanelTrackpad.setAttribute('aria-label', t('inputPanelSwitchTrackpad'));
       pasteInput.placeholder = t('pasteBarPlaceholder');
       pasteEnterLabelText.textContent = t('pasteBarEnterLabel');
       pasteSendBtn.textContent = t('pasteBarSend');
