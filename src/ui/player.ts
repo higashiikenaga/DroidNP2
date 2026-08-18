@@ -4,7 +4,7 @@ import { getLang, langSelfName, setLang, t } from './strings.ts';
 import type { DiskSlot } from '../api/webnp2.ts';
 import type { RomEntry, RejectedRomFile } from '../api/roms.ts';
 import { rhythmRejectReasonText } from '../api/roms.ts';
-import { buildKbdRows } from './kbd-layout.ts';
+import { buildKbdRows, KBD_TENKEY_ROW_START } from './kbd-layout.ts';
 import { buildFileManagerDialog, type FileManagerCallbacks } from './filemanager.ts';
 import { buildDebuggerDialog, type DebuggerCallbacks } from './debugger.ts';
 import { buildGamepadDialog, type GamepadDialogCallbacks, type HostKeyDialogCallbacks, type VpadDialogCallbacks } from './gamepad-ui.ts';
@@ -456,7 +456,9 @@ function rescale(canvas: HTMLCanvasElement, stage: HTMLElement, card: HTMLElemen
   // (高さが足りない場合は従来の整数倍時代と同じくページスクロールに任せる)。
   // ただし疑似フルスクリーン中は「1画面に収める」ことが目的なので高さも効かせる。
   // 周辺クロームを畳んで高さが固定されているため、上記の収縮ループは起きない。
-  const heightConstrained = document.body.classList.contains('pseudo-fullscreen') || document.body.classList.contains('vpad-sides-active');
+  const heightConstrained = document.body.classList.contains('pseudo-fullscreen')
+    || document.body.classList.contains('vpad-sides-active')
+    || document.body.classList.contains('input-panel-open');
   const subScale = heightConstrained ? Math.max(0.3, fit) : Math.max(0.3, Math.min(1, widthFit));
   const scale = fit >= 1 ? Math.floor(fit) : subScale;
   const w = Math.round(native.w * scale);
@@ -840,7 +842,9 @@ export function buildPlayerUI(
   const progressWrap = el('div', { class: 'progress-wrap' }, [progressLabel, progressTrack]);
 
   // PC-98配列ソフトキーボード。stageとfooterBarの間に常設(hiddenで開閉)。
-  const kbdPanel = el('div', { class: 'kbd-panel hidden' });
+  // テンキーブロックは非フルスクリーン時に帯が画面下へはみ出す主因のため既定で畳んでおく
+  // (tenkey-hidden。開くたびに既定へ戻す。トグルキーは下でkbdRowEls構築後に追加する)。
+  const kbdPanel = el('div', { class: 'kbd-panel hidden tenkey-hidden' });
   const heldOneshot = new Map<number, HTMLButtonElement>();
   const { rows: kbdRowEls, buttons: kbdKeyButtons } = buildKbdRows();
   // スキャンコード→ボタン群。setKeyIndicator() の参照テーブル。
@@ -892,6 +896,24 @@ export function buildPlayerUI(
     }
   }
   kbdRowEls.forEach((rowEl) => kbdPanel.append(rowEl));
+
+  // テンキー表示/非表示トグル。ゲストへキーは送らないためkbdKeyButtons(onVirtualKey配線)には
+  // 加えず、kbd-layout.ts/KBD_ROWSも変更しない(gamepad-ui.tsのピッカーが全キー可視を前提に
+  // 共用しているため)。テンキー直前の通常行(KBD_TENKEY_ROW_START - 1行目)の末尾に
+  // player.ts側だけで見た目を合わせたボタンを足す。
+  const tenkeyToggleBtn = el(
+    'button',
+    { type: 'button', class: 'kbd-key', 'aria-pressed': 'false' },
+    [t('kbdToggleTenkey')],
+  );
+  tenkeyToggleBtn.addEventListener('click', () => {
+    const hidden = kbdPanel.classList.toggle('tenkey-hidden');
+    tenkeyToggleBtn.setAttribute('aria-pressed', hidden ? 'false' : 'true');
+    tenkeyToggleBtn.classList.toggle('active', !hidden);
+    scheduleRescale();
+  });
+  const tenkeyToggleRow = kbdRowEls[KBD_TENKEY_ROW_START - 1];
+  if (tenkeyToggleRow) tenkeyToggleRow.append(tenkeyToggleBtn);
 
   // バーチャルトラックパッド(入力パネルの第3の種類)。ソフトキーボードと同じく
   // 「画面とコンソールバーの間の帯」として常設する(hiddenで開閉)。
@@ -1496,6 +1518,11 @@ export function buildPlayerUI(
     btnPanelTrackpad.setAttribute('aria-pressed', state.trackpadPressed ? 'true' : 'false');
     btnVirtualKbd.classList.toggle('active', state.chipVisible);
     btnVirtualKbd.setAttribute('aria-pressed', state.chipVisible ? 'true' : 'false');
+    // 入力パネル(キーボード/パッド/トラックパッド)のいずれかが表示中の間だけ、
+    // 非フルスクリーン時に1画面へ収めるためのCSSフック(input-panel-open)を立てる。
+    // 全パネルを閉じる経路(switchInputPanel/setVirtualPadEnabled/setToolbarEnabled(false))は
+    // すべてこの関数を呼ぶため、ここ1箇所に集約すれば外し忘れが起きない。
+    document.body.classList.toggle('input-panel-open', state.chipVisible);
   }
 
   function closeInputPanelMenu(): void {
@@ -2095,6 +2122,15 @@ export function buildPlayerUI(
     rescale(canvas, stage, card, rescaleChrome),
   );
   canvasSizeObserver.observe(canvas, { attributes: true, attributeFilter: ['width', 'height'] });
+
+  // kbdPanel/trackpadPanelのhiddenクラスは通常switchInputPanel経由で付け外しされ、その中で
+  // syncInputPanelUi()がdocument.bodyのinput-panel-openを追従させる。だが両パネルのclass属性が
+  // それ以外の経路(デバッグ操作等)で変わった場合にもinput-panel-openが追従するよう、
+  // 念のためclass属性そのものも監視して同期する(syncInputPanelUi自体はこの2要素のclassを
+  // 変更しないため監視ループにはならない)。
+  const inputPanelClassObserver = new MutationObserver(() => syncInputPanelUi());
+  inputPanelClassObserver.observe(kbdPanel, { attributes: true, attributeFilter: ['class'] });
+  inputPanelClassObserver.observe(trackpadPanel, { attributes: true, attributeFilter: ['class'] });
 
   const chromeObserver = new ResizeObserver(() => rescale(canvas, stage, card, rescaleChrome));
   chromeObserver.observe(document.documentElement);

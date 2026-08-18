@@ -360,6 +360,8 @@ interface Dict {
   inputPanelSwitchKeyboard(): string;
   inputPanelSwitchPad(): string;
   inputPanelSwitchTrackpad(): string;
+  /** ソフトキーボード内、テンキーブロックの表示/非表示を切り替えるトグルキーのラベル。 */
+  kbdToggleTenkey(): string;
   vpadEditAssignmentsMenuItem(): string;
   vpadDialogDescription(): string;
   vpadProfileLabel(): string;
@@ -723,6 +725,7 @@ const STRINGS: Record<Lang, Dict> = {
     inputPanelSwitchKeyboard: () => '仮想キーボードに切替',
     inputPanelSwitchPad: () => 'バーチャルパッドに切替',
     inputPanelSwitchTrackpad: () => 'バーチャルトラックパッドに切替',
+    kbdToggleTenkey: () => 'テンキー',
     vpadEditAssignmentsMenuItem: () => '割当を編集',
     vpadDialogDescription: () => '画面上の方向パッドと各ボタンへPC-98キーを割り当てます。組み込み設定は複製して編集してください。',
     vpadProfileLabel: () => 'プロファイル',
@@ -1075,6 +1078,7 @@ const STRINGS: Record<Lang, Dict> = {
     inputPanelSwitchKeyboard: () => 'Switch to virtual keyboard',
     inputPanelSwitchPad: () => 'Switch to virtual pad',
     inputPanelSwitchTrackpad: () => 'Switch to virtual trackpad',
+    kbdToggleTenkey: () => 'Numpad',
     vpadEditAssignmentsMenuItem: () => 'Edit assignments',
     vpadDialogDescription: () => 'Assign PC-98 keys to the on-screen direction pad and buttons. Duplicate a built-in profile to edit it.',
     vpadProfileLabel: () => 'Profile',

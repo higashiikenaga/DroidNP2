@@ -71,6 +71,17 @@ describe('KBD_ROWS', () => {
     expect(tenkeyRows[2].map((k) => k.code)).toEqual([0x4a, 0x4b, 0x4c, 0x4d]); // 1  2  3  =
     expect(tenkeyRows[3].map((k) => k.code)).toEqual([0x4e, 0x4f, 0x50]); // 0  ,  .
   });
+
+  // player.ts はテンキー表示/非表示トグルキーを「テンキー直前の通常行
+  // (index KBD_TENKEY_ROW_START - 1)」の末尾へ追加する(kbd-layout.ts/KBD_ROWS自体は
+  // ピッカーとの共用のため変更できない設計)。この行が存在しキーを1個以上持つことは
+  // トグルキーが実際に置ける前提であり、KBD_ROWSの構成が変わったときに無言で
+  // トグルキーが消える回帰を防ぐ。
+  it('KBD_TENKEY_ROW_START直前の行が存在し、テンキートグルキーの追加先として使える', () => {
+    const row = KBD_ROWS[KBD_TENKEY_ROW_START - 1];
+    expect(row).toBeDefined();
+    expect(row.length).toBeGreaterThan(0);
+  });
 });
 
 describe('isTenkeyCode(割り当て一覧のテキスト表示でテンキーと通常キーを区別するための判定)', () => {

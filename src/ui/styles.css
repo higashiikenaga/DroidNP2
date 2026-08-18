@@ -1138,6 +1138,10 @@ footer.app-footer a {
   touch-action: manipulation;
 }
 .kbd-panel.hidden { display: none; }
+/* テンキーブロックは非フルスクリーン時に帯が画面下へはみ出す主因のため既定で畳む。
+   kbd-layout.ts/KBD_ROWSはピッカー(gamepad-ui.ts)と共用で変えられないため、
+   非表示化はplayer.ts側で付けるこの状態クラスとCSSだけで行う。 */
+.kbd-panel.tenkey-hidden .kbd-row-tenkey { display: none; }
 
 /*
  * バーチャルトラックパッド(仮想キーボード/バーチャルパッドに次ぐ「入力パネル」の第3の種類。
@@ -1948,6 +1952,14 @@ body.pseudo-fullscreen #app {
 
 body.pseudo-fullscreen .console-card {
   box-shadow: none;
+}
+
+/* 入力パネル(ソフトキーボード/バーチャルパッド/トラックパッド)表示中は、疑似フルスクリーンと
+   同じ理由でFDスロット行だけを畳む。畳まないとcanvas縮小→カード幅縮小→FDスロット行の
+   折返しで周辺高さが増え、さらに縮小…という収縮ループに陥る(pseudo-fullscreenの措置と
+   同じ考え方。ツールバー本体・ステータス行は隠さない)。 */
+body.input-panel-open .fd-slots {
+  display: none;
 }
 /* バーチャルパッド。コンテナの空白部分はcanvas操作へ透過し、部品だけがPointer Eventsを受ける。 */
 .virtual-pad {
