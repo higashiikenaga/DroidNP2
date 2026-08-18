@@ -117,7 +117,11 @@ interface Dict {
   fetchFailedHttp(args: { url: string; status: number }): string;
   /** 配信元がOneDrive(1drv.ms/onedrive.live.com/sharepoint.com)だった場合の案内(中継しても取得できないため即座に案内する)。 */
   fetchFailedOneDrive(args: { url: string }): string;
-  /** 配信元がGoogle Drive/Dropboxで、かつ中継(VITE_DISK_PROXY)が未設定だった場合の案内。 */
+  /**
+   * 配信元がGoogle Drive/Dropboxで、かつ中継(VITE_DISK_PROXY)が未設定だった場合の案内。
+   * Dropboxは通常ホスト名置換(rewriteDropboxUrl)で直接取得できるため、ここへ来るのは
+   * 置換で救えない共有リンク(旧/s/形式・フォルダ共有・パスワード付き)の場合のみ。
+   */
   fetchFailedNeedsProxy(args: { url: string }): string;
   /** 中継サーバ経由の取得が失敗した場合のエラーメッセージ本文(中継側のエラーコードを反映)。 */
   fetchFailedProxy(args: { url: string; reason: string }): string;

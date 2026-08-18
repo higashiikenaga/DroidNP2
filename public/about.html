@@ -567,7 +567,7 @@
             <div class="note-box">
               注意: <code>hdd</code>/<code>fd1</code>/<code>fd2</code> で指定するURLの
               配信元はCORS(<code>Access-Control-Allow-Origin</code>)が有効である必要があります。
-              Google Drive/Dropboxは中継経由で自動的に取得を試みます。OneDriveは利用できません。
+              Dropboxの共有リンクはコピーしたURLをそのまま貼れます（アプリ側でホスト名を置換して直接取得します）。Google Driveは中継経由で自動的に取得を試みます。OneDriveは利用できません。
             </div>
           </div>
           <div class="lang-en">
@@ -586,7 +586,7 @@
               Note: URLs given via <code>hdd</code>/<code>fd1</code>/<code>fd2</code>
               must be served from an origin with CORS
               (<code>Access-Control-Allow-Origin</code>) enabled.
-              Google Drive/Dropbox links are automatically retried via a relay. OneDrive is not supported.
+              Dropbox share links can be pasted exactly as copied (the app rewrites the hostname and fetches them directly). Google Drive links are automatically retried via a relay. OneDrive is not supported.
             </div>
           </div>
         </section>

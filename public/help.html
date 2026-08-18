@@ -990,7 +990,7 @@
             <h2>トラブルシューティング</h2>
             <ul>
               <li><strong>音が出ない</strong> — ブラウザの制限により、最初のクリック（または自動起動時はクリック/キー入力）まで音声はミュートです。</li>
-              <li><strong>URL指定イメージの取得に失敗する</strong> — <code>hdd</code>/<code>fd1</code>/<code>fd2</code>のURLはCORS(<code>Access-Control-Allow-Origin</code>)が有効な配信元である必要があります。Google Drive/Dropboxは中継サービス経由で自動的に再取得されますが、OneDriveの共有リンクは仕様上ご利用いただけません。</li>
+              <li><strong>URL指定イメージの取得に失敗する</strong> — <code>hdd</code>/<code>fd1</code>/<code>fd2</code>のURLはCORS(<code>Access-Control-Allow-Origin</code>)が有効な配信元である必要があります。Dropboxの共有リンクは「リンクをコピー」で得たURLをそのまま貼れます（<code>dl=1</code>への書き換えは不要で、アプリ側でホスト名を<code>dl.dropboxusercontent.com</code>へ置換して直接取得します。取得できない場合は中継サービスへ自動でフォールバックします）。Google Driveは中継サービス経由で自動的に再取得されます。OneDriveの共有リンクは仕様上ご利用いただけません。</li>
               <li><strong>マウスカーソルがズレる</strong> — 「…」→「入力」→「マウス再同期」で基準を作り直せます。</li>
               <li><strong>全角文字が化ける</strong> — 「テキスト送信（日本語入力）」の章を参照してください。「日本語入力を有効化」でゲスト側にヘルパーを導入すると解決します。</li>
             </ul>
@@ -999,7 +999,7 @@
             <h2>Troubleshooting</h2>
             <ul>
               <li><strong>No sound</strong> — Due to browser restrictions, audio stays muted until your first click (or, for auto-start, until your first click/key press).</li>
-              <li><strong>Fetching a URL-specified image fails</strong> — URLs given via <code>hdd</code>/<code>fd1</code>/<code>fd2</code> must be served from an origin with CORS (<code>Access-Control-Allow-Origin</code>) enabled. Google Drive/Dropbox are automatically retried through a relay service, but OneDrive share links can't be used.</li>
+              <li><strong>Fetching a URL-specified image fails</strong> — URLs given via <code>hdd</code>/<code>fd1</code>/<code>fd2</code> must be served from an origin with CORS (<code>Access-Control-Allow-Origin</code>) enabled. Dropbox share links can be pasted exactly as "Copy link" gives them to you (no need to change <code>dl=0</code> to <code>dl=1</code>: the app rewrites the hostname to <code>dl.dropboxusercontent.com</code> and fetches directly, falling back to the relay if that fails). Google Drive is automatically retried through a relay service. OneDrive share links can't be used.</li>
               <li><strong>The mouse cursor drifts</strong> — Use More (…) → Input → Resync Mouse to re-establish the reference point.</li>
               <li><strong>Full-width characters come out garbled</strong> — See the "Sending text (typing Japanese)" section above. Installing the guest helper via "Enable full-width input" fixes this.</li>
             </ul>

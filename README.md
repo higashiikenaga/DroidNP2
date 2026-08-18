@@ -63,13 +63,21 @@ appropriate CORS headers, the fetch will fail and an error message will be
 shown on screen. GitHub raw, GitHub Pages, and your own CORS-enabled server
 work directly (plain fetch).
 
-Google Drive and Dropbox don't support CORS for a direct fetch, so it fails
+For Dropbox, you can **paste the share URL exactly as "Copy link" gives it to
+you** — no need to change `dl=0` to `dl=1`. The app rewrites the hostname to
+`dl.dropboxusercontent.com` and fetches it directly, so no relay is involved.
+Only file share links (the `/scl/fi/...` form) have been verified; the older
+`/s/...` form, folder shares, and password-protected links are untested (the
+rewrite may not cover them, in which case the relay below is used as a
+fallback).
+
+Google Drive doesn't support CORS for a direct fetch, so it fails
 at first, but the public page **automatically retries through a relay
 service** (only when the direct fetch fails). If you fork and host this
 yourself, you need to set `VITE_DISK_PROXY` (see below) to use this.
 **OneDrive share links (`1drv.ms` / `onedrive.live.com` / `sharepoint.com`)
 are not supported** — they don't work even through the relay (confirmed by
-testing). Please use Google Drive or Dropbox instead.
+testing). Please use Dropbox or Google Drive instead.
 
 Even when a `hdd`/`fd1`/`fd2` URL can't be judged by its extension (e.g. a
 distribution URL with no extension), the fetched bytes are checked for a
@@ -255,7 +263,8 @@ npm run preview   # preview the production build
 npm test          # unit tests (vitest)
 ```
 
-To enable relay fetching for Google Drive / Dropbox, set the `VITE_DISK_PROXY`
+To enable relay fetching for Google Drive (and as a fallback for Dropbox share
+links the hostname rewrite can't cover), set the `VITE_DISK_PROXY`
 environment variable at build time to the URL of your own relay service (no
 trailing `/`). If unset (the default), no relay is used and sources that the
 direct fetch fails for will simply error out. See the comment in
