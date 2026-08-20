@@ -1,4 +1,4 @@
-# WebNP2
+# DroidNP2
 
 [English](README.md)
 
@@ -6,12 +6,15 @@ PC-98 エミュレータ [NP2kai](https://github.com/AZO234/NP2kai) の wasm ビ
 ブラウザ上で動かすための Web プレイヤーです。「URL を開くだけで起動・プレイ・セーブの持ち越し」
 ができる体験を目指しています。
 
+DroidNP2 は URARA-works 氏の [WebNP2](https://github.com/uraraworks/WebNP2) のフォークで、
+Androidでの快適な操作性（タッチ操作、ソフトキーボード等）を重視した派生版です。
+
 設計の詳細は [docs/DESIGN.md](docs/DESIGN.md) を参照してください。
 
 ## 今すぐ試す
 
-- **公開ページ**: <https://uraraworks.github.io/WebNP2/>
-- **FreeDOS(98) 自動起動デモ**: <https://uraraworks.github.io/WebNP2/?freedos=1&run=1>
+- **公開ページ**: <https://higashiikenaga.github.io/DroidNP2/>
+- **FreeDOS(98) 自動起動デモ**: <https://higashiikenaga.github.io/DroidNP2/?freedos=1&run=1>
   （クリック不要で DOS プロンプトまで起動。音声は最初のクリックで有効化）
 
 ROM・市販ソフトのイメージは同梱していません。手元の HDD/FD イメージは
@@ -19,11 +22,11 @@ ROM・市販ソフトのイメージは同梱していません。手元の HDD/
 
 ## 使い方
 
-WebNP2 のユニークな特徴を紹介する紹介ページは
-<https://uraraworks.github.io/WebNP2/about.html?lang=ja> にあります。
+DroidNP2 のユニークな特徴を紹介する紹介ページは
+<https://higashiikenaga.github.io/DroidNP2/about.html?lang=ja> にあります。
 
 プレイヤー向けの使い方ページ（スクリーンショット付き）は
-<https://uraraworks.github.io/WebNP2/help.html?lang=ja> にあります。
+<https://higashiikenaga.github.io/DroidNP2/help.html?lang=ja> にあります。
 プレイヤーの **「…」→「使い方」** からも開けます。
 
 ### URL パラメータ
@@ -94,7 +97,7 @@ Google Driveをお使いください。
 - 枚数にかかわらずスロットへは自動挿入せず、**必ずディスクライブラリを開きます**
   (共有リンクを開いた側がそこから使うディスクを選ぶ、という用途のため)。
 - `lib` が指定されている場合、`run=1` が指定されていても自動起動せずディスクライブラリを開きます。
-- `fd1`/`fd2`/`hdd` と併用しても、それらのURLは破棄されません。WebNP2は実際に起動ボタンが
+- `fd1`/`fd2`/`hdd` と併用しても、それらのURLは破棄されません。DroidNP2は実際に起動ボタンが
   押されるまで `fd1`/`fd2`/`hdd` を解決しない設計のため、`lib` でライブラリを開いた後に
   改めて起動ボタンを押せば、`run=1` を指定しなかった場合と同様に `fd1`/`fd2`/`hdd` で
   起動できます。
@@ -209,10 +212,10 @@ IndexedDBに永続化されるため、FreeDOS(98) 上での作業（フォー�
 ファイル保存など）は次回訪問時にも引き継がれ、「初期状態に戻す」で
 配布時のイメージに戻せます。
 
-## MCPサーバー (AIエージェントからWebNP2を操作する)
+## MCPサーバー (AIエージェントからDroidNP2を操作する)
 
 ローカルで動かすMCPサーバー経由で、Claude Code などのAIエージェントから
-WebNP2 を操作できます（テキスト画面の読み取り・キー入力・スクリーン
+DroidNP2 を操作できます（テキスト画面の読み取り・キー入力・スクリーン
 ショット・リセット）。MCPサーバーはあなたのマシン上で動き、
 `?bridge=1` パラメータ付きで開いたページ（ローカル/公開ページどちらでも）が
 `ws://127.0.0.1` へ接続しに来る構成のため、外部サーバーには何も送信されません。
@@ -221,16 +224,16 @@ WebNP2 を操作できます（テキスト画面の読み取り・キー入力�
 （git clone も npm install も不要。Node.js 18 以上があれば動きます）:
 
 ```sh
-curl -fLO https://github.com/uraraworks/WebNP2/releases/latest/download/webnp2-mcp.mjs
+curl -fLO https://github.com/higashiikenaga/DroidNP2/releases/latest/download/webnp2-mcp.mjs
 claude mcp add webnp2 -- node "$PWD/webnp2-mcp.mjs"
 ```
 
 あとはブラウザで
-`https://uraraworks.github.io/WebNP2/?freedos=1&run=1&bridge=1`
+`https://higashiikenaga.github.io/DroidNP2/?freedos=1&run=1&bridge=1`
 を開けば繋がります。詳しい手順と提供ツール一覧は
 [mcp/README.md](mcp/README.md) を参照してください。
 お使いのAIエージェントに このファイルを示して
-「ここに書いてある通りにWebNP2へMCP接続できるようにして」と指示すれば、
+「ここに書いてある通りにDroidNP2へMCP接続できるようにして」と指示すれば、
 そのままセットアップできます。
 
 注意: 公開ページ(https)で使う場合は Chrome系ブラウザ か Firefox を

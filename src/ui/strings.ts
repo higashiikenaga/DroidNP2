@@ -11,8 +11,10 @@ interface Dict {
   footerCopyright(): string;
   /** ページフッターの本リポジトリGitHubリンクのラベル。 */
   footerGithubLabel(): string;
-  /** ページフッターの「WebNP2について」リンクのラベル（about.htmlへの導線）。 */
+  /** ページフッターの「DroidNP2について」リンクのラベル（about.htmlへの導線）。 */
   footerAboutLabel(): string;
+  /** ページフッターの、フォーク元(WebNP2, URARA-works)へのリンクのラベル。 */
+  footerForkOriginLabel(): string;
   /** ツールバーの「使い方」ボタン。help.htmlを別タブで開く。 */
   toolbarHelp(): string;
   /** ツールバーの「…」オーバーフローボタンのツールチップ/メニュー見出し。 */
@@ -447,10 +449,11 @@ interface Dict {
 
 const STRINGS: Record<Lang, Dict> = {
   ja: {
-    title: () => 'WebNP2 - PC-98 Emulator',
+    title: () => 'DroidNP2 - PC-98 Emulator',
     footerCopyright: () => '© URARA-works',
     footerGithubLabel: () => 'GitHubで見る',
-    footerAboutLabel: () => 'WebNP2について',
+    footerAboutLabel: () => 'DroidNP2について',
+    footerForkOriginLabel: () => 'フォーク元: WebNP2',
     toolbarHelp: () => '使い方',
     toolbarMore: () => 'その他',
     toolbarGroupInput: () => '入力',
@@ -803,10 +806,11 @@ const STRINGS: Record<Lang, Dict> = {
       `ファイル名は8.3形式にしてください(2バイト文字・長い名前は不可): ${name}`,
   },
   en: {
-    title: () => 'WebNP2 - PC-98 Emulator',
+    title: () => 'DroidNP2 - PC-98 Emulator',
     footerCopyright: () => '© URARA-works',
     footerGithubLabel: () => 'View on GitHub',
-    footerAboutLabel: () => 'About WebNP2',
+    footerAboutLabel: () => 'About DroidNP2',
+    footerForkOriginLabel: () => 'Forked from WebNP2',
     toolbarHelp: () => 'Help',
     toolbarMore: () => 'More',
     toolbarGroupInput: () => 'Input',

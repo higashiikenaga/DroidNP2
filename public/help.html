@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#101010" />
     <link rel="icon" type="image/png" href="./np2icon.png" />
     <link rel="apple-touch-icon" href="./np2icon.png" />
-    <title>WebNP2 使い方</title>
+    <title>DroidNP2 使い方</title>
     <style>
       :root {
         color-scheme: light;
@@ -255,8 +255,8 @@
     <header class="help-header">
       <div class="help-header-title">
         <img src="./np2icon.png" alt="" width="28" height="28" />
-        <h1 class="lang-ja">WebNP2 使い方</h1>
-        <h1 class="lang-en">WebNP2 Help</h1>
+        <h1 class="lang-ja">DroidNP2 使い方</h1>
+        <h1 class="lang-en">DroidNP2 Help</h1>
       </div>
       <button type="button" class="lang-toggle-btn" id="langToggleBtn"></button>
     </header>
@@ -268,7 +268,7 @@
           <div class="lang-ja">
             <h2>はじめに</h2>
             <p>
-              WebNP2 は、PC-98 エミュレータ
+              DroidNP2 は、PC-98 エミュレータ
               <a href="https://github.com/AZO234/NP2kai" target="_blank" rel="noopener">NP2kai</a>
               の wasm ビルドをブラウザ上で動かす Web プレイヤーです。URL を開くだけで起動でき、
               続きから再開できることを目指しています。
@@ -281,14 +281,22 @@
               読み込んだディスクイメージは、あなたのブラウザ内(IndexedDB)にのみ保存され、
               サーバーへ送信されることはありません。
             </p>
+            <p>
+              <a href="https://github.com/uraraworks/WebNP2" target="_blank" rel="noopener">WebNP2</a>
+              (URARA-works)のフォークで、Androidでの快適な操作性を重視した派生版です。
+            </p>
           </div>
           <div class="lang-en">
             <h2>Introduction</h2>
             <p>
-              WebNP2 is a web player that runs a WebAssembly build of the PC-98 emulator
+              DroidNP2 is a web player that runs a WebAssembly build of the PC-98 emulator
               <a href="https://github.com/AZO234/NP2kai" target="_blank" rel="noopener">NP2kai</a>
               in your browser. The goal is a "just open the URL" experience where you can
               resume right where you left off.
+            </p>
+            <p>
+              A fork of <a href="https://github.com/uraraworks/WebNP2" target="_blank" rel="noopener">WebNP2</a>
+              (URARA-works), focused on a comfortable experience on Android.
             </p>
             <p>
               <strong>No ROM images or commercial software disk images are bundled.</strong>
@@ -382,7 +390,7 @@
             <p>
               URLパラメータ(<code>?hdd=</code>/<code>?fd1=</code>/<code>?fd2=</code>等)で
               イメージを直接指定して開くこともできます。詳細は
-              <a href="https://github.com/uraraworks/WebNP2#readme" target="_blank" rel="noopener">READMEのURLパラメータの節</a>
+              <a href="https://github.com/higashiikenaga/DroidNP2#readme" target="_blank" rel="noopener">READMEのURLパラメータの節</a>
               を参照してください。
             </p>
             <p>
@@ -440,14 +448,14 @@
               You can also open the page with URL parameters
               (<code>?hdd=</code>/<code>?fd1=</code>/<code>?fd2=</code>, etc.) to load
               images directly. See the
-              <a href="https://github.com/uraraworks/WebNP2#readme" target="_blank" rel="noopener">URL parameters section of the README</a>
+              <a href="https://github.com/higashiikenaga/DroidNP2#readme" target="_blank" rel="noopener">URL parameters section of the README</a>
               for details.
             </p>
             <p>
               These parameters also accept a <code>.zip</code> / <code>.lzh</code>
               URL directly — if the fetched content is an archive, it's extracted
               automatically. A single disk inside is used right away; if it
-              contains multiple disks, WebNP2 can't decide which one to boot, so
+              contains multiple disks, DroidNP2 can't decide which one to boot, so
               it skips auto-start (even with <code>run=1</code>) and opens the
               Disk Library for you to choose.
             </p>
@@ -944,13 +952,13 @@
           <div class="lang-ja">
             <h2>AIから操作する（MCP連携）</h2>
             <p>
-              WebNP2 は、ローカルで動かす MCP サーバー(<code>webnp2-mcp</code>)経由で、
+              DroidNP2 は、ローカルで動かす MCP サーバー(<code>webnp2-mcp</code>)経由で、
               Claude Code などの AI エージェントから操作できます。MCP サーバーは
               あなたのマシン上で動き、画面内容やディスクイメージが外部サーバーへ
               送信されることはありません。
             </p>
             <p>
-              ブラウザで WebNP2 を <code>?bridge=1</code> パラメータ付きで開くと、
+              ブラウザで DroidNP2 を <code>?bridge=1</code> パラメータ付きで開くと、
               ページがローカルの MCP サーバーへ接続します。主なツールは以下の
               とおりです。
             </p>
@@ -969,7 +977,7 @@
             </table>
             <p>
               セットアップ手順の詳細は
-              <a href="https://github.com/uraraworks/WebNP2/tree/master/mcp" target="_blank" rel="noopener">mcp/README.md</a>
+              <a href="https://github.com/higashiikenaga/DroidNP2/tree/master/mcp" target="_blank" rel="noopener">mcp/README.md</a>
               を参照してください。
             </p>
             <div class="note-box">
@@ -979,15 +987,15 @@
             </div>
           </div>
           <div class="lang-en">
-            <h2>Controlling WebNP2 from AI agents (MCP)</h2>
+            <h2>Controlling DroidNP2 from AI agents (MCP)</h2>
             <p>
-              WebNP2 can be driven by AI agents such as Claude Code through a
+              DroidNP2 can be driven by AI agents such as Claude Code through a
               local MCP server (<code>webnp2-mcp</code>). The MCP server always
               runs on your own machine, and screen contents or disk images are
               never sent to any external server.
             </p>
             <p>
-              Open WebNP2 with the <code>?bridge=1</code> parameter to have the
+              Open DroidNP2 with the <code>?bridge=1</code> parameter to have the
               page connect to your local MCP server. Some of the main tools:
             </p>
             <table class="btn-table">
@@ -1005,7 +1013,7 @@
             </table>
             <p>
               See
-              <a href="https://github.com/uraraworks/WebNP2/tree/master/mcp" target="_blank" rel="noopener">mcp/README.md</a>
+              <a href="https://github.com/higashiikenaga/DroidNP2/tree/master/mcp" target="_blank" rel="noopener">mcp/README.md</a>
               for full setup instructions.
             </p>
             <div class="note-box">
@@ -1042,14 +1050,16 @@
 
     <footer class="help-footer">
       <span class="lang-ja">
-        <a href="./index.html">WebNP2 プレイヤーに戻る</a> /
-        <a href="./about.html">WebNP2 の紹介ページ</a> /
-        <a href="https://github.com/uraraworks/WebNP2" target="_blank" rel="noopener">GitHubで見る</a>
+        <a href="./index.html">DroidNP2 プレイヤーに戻る</a> /
+        <a href="./about.html">DroidNP2 の紹介ページ</a> /
+        <a href="https://github.com/higashiikenaga/DroidNP2" target="_blank" rel="noopener">GitHubで見る</a> /
+        <a href="https://github.com/uraraworks/WebNP2" target="_blank" rel="noopener">フォーク元: WebNP2</a>
       </span>
       <span class="lang-en">
-        <a href="./index.html">Back to the WebNP2 player</a> /
-        <a href="./about.html">About WebNP2</a> /
-        <a href="https://github.com/uraraworks/WebNP2" target="_blank" rel="noopener">View on GitHub</a>
+        <a href="./index.html">Back to the DroidNP2 player</a> /
+        <a href="./about.html">About DroidNP2</a> /
+        <a href="https://github.com/higashiikenaga/DroidNP2" target="_blank" rel="noopener">View on GitHub</a> /
+        <a href="https://github.com/uraraworks/WebNP2" target="_blank" rel="noopener">Forked from WebNP2</a>
       </span>
     </footer>
 
@@ -1091,7 +1101,7 @@
           }
           document.body.setAttribute('data-lang', lang);
           document.documentElement.setAttribute('lang', lang);
-          document.title = lang === 'ja' ? 'WebNP2 使い方' : 'WebNP2 Help';
+          document.title = lang === 'ja' ? 'DroidNP2 使い方' : 'DroidNP2 Help';
           var toggleBtn = document.getElementById('langToggleBtn');
           if (toggleBtn) toggleBtn.textContent = lang === 'ja' ? 'EN' : '日本語';
         }

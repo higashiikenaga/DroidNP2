@@ -125,8 +125,10 @@ const FREEDOS_SOURCE_KEY = 'freedos:fd98_2hd';
 // 既に起動対象が確定しているので、従来通り単一ボタンにする)。
 const diskSpecified = Boolean(hddUrl || fd1Url || fd2Url || freedosParam);
 
-// フッターに載せる本リポジトリのGitHubリンク先。
-const WEBNP2_REPO_URL = 'https://github.com/uraraworks/WebNP2';
+// フッターに載せる本リポジトリ(DroidNP2)のGitHubリンク先。
+const DROIDNP2_REPO_URL = 'https://github.com/higashiikenaga/DroidNP2';
+// フッターに載せるフォーク元(WebNP2, URARA-works)のGitHubリンク先。
+const WEBNP2_UPSTREAM_URL = 'https://github.com/uraraworks/WebNP2';
 // フッターの著作権表示リンク先。
 const URARA_WORKS_URL = 'https://www.urara-works.jp/';
 // 拡張メモリ(MB)。DOS用途では1MBで十分なので既定は1。?mem=N で変更可能。
@@ -242,7 +244,7 @@ function applyDocumentStrings(): void {
     footer.append(copyrightLink, ' / ');
 
     const githubLink = document.createElement('a');
-    githubLink.href = WEBNP2_REPO_URL;
+    githubLink.href = DROIDNP2_REPO_URL;
     githubLink.target = '_blank';
     githubLink.rel = 'noopener';
     githubLink.textContent = t('footerGithubLabel');
@@ -253,7 +255,16 @@ function applyDocumentStrings(): void {
     aboutLink.target = '_blank';
     aboutLink.rel = 'noopener';
     aboutLink.textContent = t('footerAboutLabel');
-    footer.append(aboutLink);
+    footer.append(aboutLink, ' / ');
+
+    // フォーク元(WebNP2, URARA-works)の明記。名称をDroidNP2へ変更した際、
+    // どのプロジェクトの派生かが分からなくならないよう常設で残す。
+    const forkOriginLink = document.createElement('a');
+    forkOriginLink.href = WEBNP2_UPSTREAM_URL;
+    forkOriginLink.target = '_blank';
+    forkOriginLink.rel = 'noopener';
+    forkOriginLink.textContent = t('footerForkOriginLabel');
+    footer.append(forkOriginLink);
 
     // どのビルドを見ているか識別するための版文字列(git commit時刻+ハッシュ由来。
     // 生成は vite.config.ts の define、詳細は src/version.ts / tools/compute-version.mjs 参照)。

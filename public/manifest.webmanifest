@@ -1,7 +1,7 @@
 {
-  "name": "WebNP2 - PC-98 Emulator",
-  "short_name": "WebNP2",
-  "description": "The online PC-98 emulator powered by Neko Project II kai (NP2kai-wasm)",
+  "name": "DroidNP2 - PC-98 Emulator",
+  "short_name": "DroidNP2",
+  "description": "The online PC-98 emulator powered by Neko Project II kai (NP2kai-wasm). A fork of WebNP2 by URARA-works.",
   "start_url": "./?pwa=1",
   "scope": "./",
   "display": "standalone",

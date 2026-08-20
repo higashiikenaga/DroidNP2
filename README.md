@@ -1,4 +1,4 @@
-# WebNP2
+# DroidNP2
 
 [日本語](README.ja.md)
 
@@ -7,12 +7,16 @@ compiled to WebAssembly (NP2kai-wasm). The goal is a "just open the URL and
 play" experience — launch, play, and resume — with progress carried across
 sessions.
 
+DroidNP2 is a fork of [WebNP2](https://github.com/uraraworks/WebNP2) by
+URARA-works, focused on a comfortable experience on Android (touch input,
+an on-screen keyboard, and other mobile-friendly changes).
+
 See [docs/DESIGN.md](docs/DESIGN.md) for design details.
 
 ## Try it now
 
-- **Live site**: <https://uraraworks.github.io/WebNP2/>
-- **FreeDOS(98) auto-boot demo**: <https://uraraworks.github.io/WebNP2/?freedos=1&run=1>
+- **Live site**: <https://higashiikenaga.github.io/DroidNP2/>
+- **FreeDOS(98) auto-boot demo**: <https://higashiikenaga.github.io/DroidNP2/?freedos=1&run=1>
   (boots straight to the DOS prompt with no clicks; audio unmutes on your first click)
 
 No ROMs or commercial software images are bundled. You can load your own
@@ -20,11 +24,11 @@ HDD/FD images by dragging and dropping them onto the screen.
 
 ## Usage
 
-An introduction page highlighting WebNP2's unique features is available at
-<https://uraraworks.github.io/WebNP2/about.html?lang=en>.
+An introduction page highlighting DroidNP2's unique features is available at
+<https://higashiikenaga.github.io/DroidNP2/about.html?lang=en>.
 
 A player-facing help page (with screenshots) is available at
-<https://uraraworks.github.io/WebNP2/help.html?lang=en>. It can also be opened
+<https://higashiikenaga.github.io/DroidNP2/help.html?lang=en>. It can also be opened
 from **More (…) → Help** in the player.
 
 ### URL parameters
@@ -83,7 +87,7 @@ Even when a `hdd`/`fd1`/`fd2` URL can't be judged by its extension (e.g. a
 distribution URL with no extension), the fetched bytes are checked for a
 leading ZIP/LZH signature and auto-detected as an archive. If extraction
 yields a single disk image, it's used directly for that slot; if it yields
-two or more, WebNP2 can't decide which one to use, so it skips auto-boot
+two or more, DroidNP2 can't decide which one to use, so it skips auto-boot
 (even with `run=1`) and opens the Disk Library instead, with the matching
 folder expanded and highlighted so you can pick one. If the archive doesn't
 contain an image matching the requested slot (e.g. a `hdd` archive that only
@@ -104,7 +108,7 @@ Notes on `lib` (for sharing links to multi-disk collections):
   what to use.
 - `run=1` is skipped whenever `lib` is given (the Disk Library opens instead
   of auto-booting).
-- If combined with `fd1`/`fd2`/`hdd`, those URLs aren't discarded — WebNP2
+- If combined with `fd1`/`fd2`/`hdd`, those URLs aren't discarded — DroidNP2
   only resolves them once you actually start the emulator (via the overlay's
   start button), so pressing that button afterward still boots with them,
   exactly as it would without `run=1`.
@@ -237,9 +241,9 @@ inside FreeDOS(98) (formatting, saving files, etc.) carry over between
 visits, and "Reset to initial state" restores the pristine distributed
 image.
 
-## MCP server (control WebNP2 from AI agents)
+## MCP server (control DroidNP2 from AI agents)
 
-WebNP2 can be driven by AI agents (Claude Code etc.) through a local MCP
+DroidNP2 can be driven by AI agents (Claude Code etc.) through a local MCP
 server: read the text screen, type keys, take screenshots, and reset the
 machine. The MCP server runs on your machine; the page (local or the
 public one above) connects back to `ws://127.0.0.1` when opened with the
@@ -249,14 +253,14 @@ Setup is a single self-contained file — no `git clone`, no `npm install`,
 just Node.js 18+:
 
 ```sh
-curl -fLO https://github.com/uraraworks/WebNP2/releases/latest/download/webnp2-mcp.mjs
+curl -fLO https://github.com/higashiikenaga/DroidNP2/releases/latest/download/webnp2-mcp.mjs
 claude mcp add webnp2 -- node "$PWD/webnp2-mcp.mjs"
 ```
 
-Then open `https://uraraworks.github.io/WebNP2/?freedos=1&run=1&bridge=1`
+Then open `https://higashiikenaga.github.io/DroidNP2/?freedos=1&run=1&bridge=1`
 in your browser. Full instructions and the tool list live in
 [mcp/README.md](mcp/README.md). To have your AI agent set it up for you,
-just point it at that file and say "set up MCP access to WebNP2 as
+just point it at that file and say "set up MCP access to DroidNP2 as
 described here".
 
 Note: with the public (https) page, use a Chromium-based browser or
