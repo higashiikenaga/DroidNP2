@@ -131,6 +131,11 @@ image based on its extension.
   positives
 - Archives: `.zip` `.lzh`
 
+`.hdm` is ambiguous — it's used both as an FD format (by the core itself) and
+as an HDD format (some officially distributed titles). Dropping it directly
+onto a specific slot uses that slot's kind; a generic drop elsewhere asks
+which one to treat it as (see "Android" above).
+
 Dropping multiple files at once shows a confirmation dialog.
 
 **HDDs can only be handled before boot.** The emulator core cannot swap a HDD
@@ -200,6 +205,58 @@ The toolbar keeps Reset, Fullscreen, On-screen Keyboard, Screenshot, and More
 (…) visible. The More menu groups less frequent actions under Input, Disk, and
 State, with ROM Files, Debugger, Help, and Language as direct rows. Language is
 shown with a globe icon and its current value (“English” or “日本語”).
+
+### Android
+
+DroidNP2 adds several changes on top of upstream WebNP2 specifically to make
+Android use comfortable:
+
+- **Install as an app (PWA)**: `manifest.webmanifest` + a Service Worker let
+  Chrome on Android offer "Add to Home Screen" / "Install app", launching in
+  `standalone` mode (no address bar). The Service Worker only caches
+  same-origin GET requests (network-first) and never touches cross-origin
+  disk image fetches (`?hdd=`/`?fd1=` etc.) or Range requests.
+- **Two on-screen keyboard layouts**: a "1.5-row" compact mode (arrows,
+  digits, Space, Enter, plus A/B/C/D/: for common game keys) and the existing
+  full QWERTY layout, toggle between them from inside the keyboard panel.
+  Both use a translucent beige background with black text.
+- **Keyboard as a corner overlay in landscape fullscreen**: entering native
+  fullscreen (the Fullscreen API target is the whole card, not just the
+  canvas, so the keyboard stays visible) while the on-screen keyboard is open
+  and the device is in landscape shrinks the emulator screen to the top-left
+  (about 60% of viewport width) and floats the keyboard as a translucent
+  overlay in the bottom-right corner, instead of splitting the screen into
+  stacked bands.
+- **Tap-to-click**: a tap on the emulator screen converts the touch
+  coordinates to the PC-98 screen resolution (640x400 etc.) in real time and
+  issues it as a single "move cursor + left click" event (see "Keyboard and
+  mouse" / the Virtual Trackpad above for the other touch gestures).
+- **Automatic Epson-check patch**: when a disk image (`.d88`, `.thd`, etc.)
+  is loaded, its binary is scanned for the "Epson machine check" pattern many
+  PC-98 games use (an `INT 1Dh` machine-ID call followed by a conditional
+  branch) and the branch is NOPed out, letting titles that refuse to run on
+  non-NEC-branded machines boot. This is heuristic pattern matching, not a
+  guaranteed-safe patch — it can be disabled per-boot via the core config if
+  it ever causes trouble.
+- **A dedicated "Game Folder" (Scoped Storage friendly)**: on browsers that
+  support the File System Access API, **More (…) → Disk → Game Folder** lets
+  you pick one persistent folder for the app to use, instead of relying on
+  generic Downloads — closer to how Android's Scoped Storage expects apps to
+  work with shared storage.
+- **`.hdm` works in either slot, regardless of size**: `.hdm` is used both as
+  an FD format (by the NP2kai core itself) and as an HDD format (some
+  officially distributed AliceSoft titles). Dropping one directly onto an FD
+  slot always inserts it as FD; using the HDD slot's insert button always
+  treats it as HDD; a generic drop anywhere else asks you which one to treat
+  it as, instead of silently guessing from file size (an earlier size-based
+  guess misclassified some HDD-only titles as FD).
+- **Screen Wake Lock**: while the emulator is running, the screen is kept
+  from turning off (Screen Wake Lock API), since a screen-off tab is throttled
+  by the browser and stalls the core's main loop and audio. Re-acquired
+  automatically when the page becomes visible again (the API auto-releases on
+  `document.hidden`); returning to the foreground also retries resuming any
+  AudioContext the OS suspended in the background, without waiting for a
+  fresh tap.
 
 ### Progress persistence
 
@@ -395,6 +452,15 @@ excluded via `.gitignore` and never committed.
 - File transfer dialog between the browser and a disk image (with .lzh/.zip auto-extraction)
 - Low-latency audio output via AudioWorklet (default; auto-falls back to the legacy SDL path)
 - Automatic GitHub Pages deployment via GitHub Actions
+- Installable as a PWA (standalone display, offline app shell via a
+  same-origin-only Service Worker)
+- Two on-screen keyboard layouts (1.5-row compact / full QWERTY), shown as a
+  right-corner overlay over a shrunk screen in landscape fullscreen
+- Automatic Epson-check patching of loaded disk images
+- A dedicated Game Folder via the File System Access API
+- `.hdm` disk images usable as either FD or HDD, independent of file size
+- Screen Wake Lock while running, with automatic audio-context resume on
+  returning to the foreground
 
 Further implementation details and plans are
 covered in [docs/DESIGN.md](docs/DESIGN.md).
