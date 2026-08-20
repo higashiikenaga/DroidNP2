@@ -239,6 +239,12 @@ interface Dict {
   // --- ファイルマネージャ(FTPクライアント風2ペイン) ---
   /** ツールバーの「ファイル転送」ボタン。 */
   toolbarFileManager(): string;
+  /** ゲーム専用フォルダ(Scoped Storage対応の永続保存先)を選択/変更するボタン。 */
+  toolbarGameFolder(): string;
+  /** ゲーム専用フォルダ選択後の確認メッセージ。{name}はフォルダ名。 */
+  statusGameFolderSelected(args: { name: string }): string;
+  /** ブラウザがフォルダ選択(File System Access API)に未対応の場合の案内。 */
+  statusGameFolderUnsupported(): string;
   fmDialogTitle(): string;
   /** ゲストがフロッピーへアクセス中の転送を避けるよう促す注意書き。 */
   fmDialogNote(): string;
@@ -362,6 +368,8 @@ interface Dict {
   inputPanelSwitchTrackpad(): string;
   /** ソフトキーボード内、テンキーブロックの表示/非表示を切り替えるトグルキーのラベル。 */
   kbdToggleTenkey(): string;
+  /** ソフトキーボードの「1.5列(矢印/数字/スペース/リターンのみ)」⇔「フル(QWERTY全体)」切替ボタンのラベル。 */
+  kbdToggleCompact(): string;
   vpadEditAssignmentsMenuItem(): string;
   vpadDialogDescription(): string;
   vpadProfileLabel(): string;
@@ -626,6 +634,9 @@ const STRINGS: Record<Lang, Dict> = {
     debuggerBreakpointHit: ({ index }) => `BP${index} で停止しました。`,
     debuggerBreakpointMiss: () => '100000命令以内にBPへ到達しませんでした。',
     toolbarFileManager: () => 'ファイル転送',
+    toolbarGameFolder: () => 'ゲーム用フォルダ',
+    statusGameFolderSelected: ({ name }) => `ゲーム用フォルダを設定しました（${name}）`,
+    statusGameFolderUnsupported: () => 'お使いのブラウザはフォルダ選択に対応していません',
     fmDialogTitle: () => 'ファイル転送',
     fmDialogNote: () =>
       '注意: ゲストがフロッピーへアクセス中(FDDランプ点灯中)の転送は避けてください。HDDイメージは起動前のみ選択できます。',
@@ -726,6 +737,7 @@ const STRINGS: Record<Lang, Dict> = {
     inputPanelSwitchPad: () => 'バーチャルパッドに切替',
     inputPanelSwitchTrackpad: () => 'バーチャルトラックパッドに切替',
     kbdToggleTenkey: () => 'テンキー',
+    kbdToggleCompact: () => 'フル配列',
     vpadEditAssignmentsMenuItem: () => '割当を編集',
     vpadDialogDescription: () => '画面上の方向パッドと各ボタンへPC-98キーを割り当てます。組み込み設定は複製して編集してください。',
     vpadProfileLabel: () => 'プロファイル',
@@ -979,6 +991,9 @@ const STRINGS: Record<Lang, Dict> = {
     debuggerBreakpointHit: ({ index }) => `Stopped at BP${index}.`,
     debuggerBreakpointMiss: () => 'No breakpoint reached within 100000 instructions.',
     toolbarFileManager: () => 'File Transfer',
+    toolbarGameFolder: () => 'Game Folder',
+    statusGameFolderSelected: ({ name }) => `Game folder set (${name})`,
+    statusGameFolderUnsupported: () => 'Your browser does not support folder selection',
     fmDialogTitle: () => 'File Transfer',
     fmDialogNote: () =>
       'Note: avoid transferring while the guest is accessing the floppy (FDD light on). HDD images can only be selected before boot.',
@@ -1079,6 +1094,7 @@ const STRINGS: Record<Lang, Dict> = {
     inputPanelSwitchPad: () => 'Switch to virtual pad',
     inputPanelSwitchTrackpad: () => 'Switch to virtual trackpad',
     kbdToggleTenkey: () => 'Numpad',
+    kbdToggleCompact: () => 'Full layout',
     vpadEditAssignmentsMenuItem: () => 'Edit assignments',
     vpadDialogDescription: () => 'Assign PC-98 keys to the on-screen direction pad and buttons. Duplicate a built-in profile to edit it.',
     vpadProfileLabel: () => 'Profile',

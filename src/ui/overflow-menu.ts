@@ -24,6 +24,7 @@ export type ToolbarActionId =
   | 'romManager'
   | 'diskLibrary'
   | 'fileManager'
+  | 'gameFolder'
   | 'debuggerOpen'
   | 'help'
   | 'language';
@@ -32,7 +33,7 @@ export type ToolbarActionId =
 export const TOOLBAR_ACTIONS: readonly ToolbarActionId[] = [
   'machineReset', 'saveState', 'loadState', 'screenshot', 'fullscreen', 'virtualKbd', 'gamepad',
   'mouseCapture', 'mouseResync', 'resetOriginal', 'pasteText', 'romManager', 'diskLibrary',
-  'fileManager', 'debuggerOpen', 'help', 'language',
+  'fileManager', 'gameFolder', 'debuggerOpen', 'help', 'language',
 ];
 
 /** 常時ツールバーに残す操作(使用頻度が高い/常に押せる必要があるもの)。 */
@@ -53,7 +54,7 @@ export const OVERFLOW_GROUP_ORDER: readonly OverflowGroupId[] = ['input', 'disk'
 /** グループ→所属操作(第2階層に出す順序)。 */
 export const OVERFLOW_GROUPS: Record<OverflowGroupId, readonly ToolbarActionId[]> = {
   input: ['mouseCapture', 'mouseResync', 'gamepad', 'pasteText'],
-  disk: ['diskLibrary', 'fileManager'],
+  disk: ['diskLibrary', 'fileManager', 'gameFolder'],
   state: ['saveState', 'loadState', 'resetOriginal'],
 };
 

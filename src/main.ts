@@ -15,6 +15,7 @@ import { createDebugger, createWebNP2, type DebuggerController } from '../packag
 import { Bridge } from './api/bridge.ts';
 import { WEBNP2_VERSION_FOOTER } from './version.ts';
 import * as db from './storage/db.ts';
+import { isGameFolderSupported, pickGameFolder } from './storage/game-folder.ts';
 import type { DiskFile } from './core/module.ts';
 import {
   coreDiskAccess,
@@ -919,6 +920,26 @@ async function exportDiskSlot(slot: DiskSlot): Promise<void> {
     return;
   }
   await np2.exportDisk(slot);
+}
+
+/**
+ * ゲーム専用フォルダ(Android Scoped Storage対応)を選択/変更する。
+ * File System Access API非対応のブラウザ(iOS Safari等)では案内を出すだけで何もしない
+ * (呼び出し元のディスクエクスポート等は引き続き従来の<a download>を使う)。
+ */
+async function pickGameFolderUi(): Promise<void> {
+  if (!isGameFolderSupported()) {
+    setStatusT('statusGameFolderUnsupported', []);
+    return;
+  }
+  try {
+    const handle = await pickGameFolder();
+    if (handle) setStatusT('statusGameFolderSelected', [{ name: handle.name }]);
+  } catch (err) {
+    // ユーザーがダイアログをキャンセルした場合(AbortError)は何もしない。
+    if (err instanceof Error && err.name === 'AbortError') return;
+    console.error('[WebNP2] failed to pick game folder', err);
+  }
 }
 
 /** セット済みのHDDを外す(起動前のみ)。 */
@@ -1830,6 +1851,7 @@ function init(): void {
         void doBoot(true);
       },
       onExportDisk: (slot) => void exportDiskSlot(slot),
+      onGameFolderPick: () => void pickGameFolderUi(),
       onEjectPendingHdd: () => clearPendingHdd(),
       onResetToOriginal: () => void chooseAndReset(),
       onFullscreen: () => void np2.fullscreen(),

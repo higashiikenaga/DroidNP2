@@ -3,6 +3,7 @@
 // グローバル `window.Module` を先に定義してから <script> を動的挿入して起動する。
 
 import { WEBNP2_BUILD_ID } from '../version.ts';
+import { isPatchableDiskImage, patchEpsonCheck } from '../api/epson-patch.ts';
 
 export interface DiskFile {
   name: string;
@@ -19,6 +20,21 @@ export interface BootConfig {
   clkMult?: number;
   /** ユーザー登録済みのROM/素材ファイル。preRunでMEMFSのルート直下(/名前)へ注入する。 */
   roms?: DiskFile[];
+  /**
+   * ディスクイメージ内のエプソンチェック(INT 1Dh直後の分岐)を自動でNOP化するか。
+   * 省略時は true(既定で有効)。src/api/epson-patch.ts 参照。
+   */
+  epsonPatch?: boolean;
+}
+
+/** epsonPatch有効時、パッチ対象拡張子のディスクだけコピーしてNOP化する。非対象や無効時は元のバイト列をそのまま返す。 */
+function applyEpsonPatchIfEnabled(file: DiskFile, enabled: boolean): DiskFile {
+  if (!enabled || !isPatchableDiskImage(file.name)) return file;
+  const { bytes, patches } = patchEpsonCheck(file.bytes);
+  if (patches.length > 0) {
+    console.info(`[WebNP2 core] epson-check patch applied to ${file.name}: ${patches.length} site(s)`);
+  }
+  return { name: file.name, bytes };
 }
 
 // Emscripten FS の最小限の型 (このプロジェクトで使う分のみ)。
@@ -229,11 +245,14 @@ export function boot(config: BootConfig, canvas: HTMLCanvasElement): Promise<Ems
             if (!FS.analyzePath('/disk').exists) {
               FS.mkdir('/disk');
             }
+            const epsonPatchEnabled = config.epsonPatch !== false;
             if (config.hdd) {
-              FS.writeFile(`/disk/${config.hdd.name}`, config.hdd.bytes);
+              const hdd = applyEpsonPatchIfEnabled(config.hdd, epsonPatchEnabled);
+              FS.writeFile(`/disk/${hdd.name}`, hdd.bytes);
             }
             for (const fd of config.fds) {
-              FS.writeFile(`/disk/${fd.name}`, fd.bytes);
+              const patched = applyEpsonPatchIfEnabled(fd, epsonPatchEnabled);
+              FS.writeFile(`/disk/${patched.name}`, patched.bytes);
             }
             for (const rom of config.roms ?? []) {
               const lowerName = rom.name.toLowerCase();

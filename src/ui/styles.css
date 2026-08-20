@@ -1144,6 +1144,33 @@ footer.app-footer a {
 .kbd-panel.tenkey-hidden .kbd-row-tenkey { display: none; }
 
 /*
+ * Android向けソフトキーボードの配色: 半透明ベージュ背景+黒文字。
+ * 「1.5列(矢印/数字/スペース/リターンのみ)」「フル(QWERTY英数字/スペース/リターン/GRPH)」
+ * の2モードとも共通でこの配色を使う(見た目を揃えて「同じキーボードの表示量違い」に
+ * 見せるため)。モードの切り替え自体は kbd-panel の kbd-compact クラス有無で行い、
+ * 対象外キーは data-compact 属性の無いボタンとして CSS だけで隠す
+ * (DOM/イベント配線は player.ts 側で1回だけ作った同じボタン群を使い回す)。
+ */
+.kbd-panel {
+  background: rgba(222, 202, 165, 0.82);
+}
+.kbd-key {
+  background: rgba(222, 202, 165, 0.55);
+  color: #1a1208;
+  border-color: rgba(60, 45, 20, 0.4);
+}
+.kbd-key:active { background: rgba(222, 202, 165, 0.85); }
+.kbd-key.active {
+  background: rgba(180, 140, 60, 0.85);
+  border-color: rgba(60, 45, 20, 0.6);
+  color: #1a1208;
+}
+.kbd-panel.kbd-compact .kbd-row-tenkey { display: none; }
+.kbd-panel.kbd-compact .kbd-key:not([data-compact='show']) { display: none; }
+/* 対象キーが0個の行(1.5列モードでの CTRL/SHIFT/CAPS 行など)は高さだけ残らないよう畳む。 */
+.kbd-panel.kbd-compact .kbd-row:not(:has([data-compact='show'])) { display: none; }
+
+/*
  * バーチャルトラックパッド(仮想キーボード/バーチャルパッドに次ぐ「入力パネル」の第3の種類。
  * src/ui/virtual-trackpad.ts 参照)。仮想キーボードと同じ「画面とコンソールバーの間の帯」に
  * 置く。.stage へ重ねない理由は、操作中の指がゲスト画面を隠さないようにすることが

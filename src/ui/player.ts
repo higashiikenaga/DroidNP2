@@ -79,6 +79,8 @@ export interface PlayerCallbacks {
   /** オーバーレイの「FreeDOS(98) で起動」ボタン押下時（offerFreeDosChoice時のみ表示）。 */
   onStartFreeDos: () => void;
   onExportDisk: (slot: DiskSlot) => void;
+  /** ゲーム専用フォルダの選択/変更(Scoped Storage対応)。 */
+  onGameFolderPick: () => void;
   /** 起動前にセットしただけのHDDを外す。 */
   onEjectPendingHdd: () => void;
   onResetToOriginal: () => void;
@@ -354,6 +356,8 @@ const ICONS = {
     'M3 7h18a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1z M6 10h.01 M9 10h.01 M12 10h.01 M15 10h.01 M18 10h.01 M6 13h.01 M9 13h.01 M12 13h.01 M15 13h.01 M18 13h.01 M8 16h8',
   // 上下の水平矢印(往復)＝ファイル転送(FTPクライアント風2ペイン)。
   fileTransfer: 'M3 8h13 M12 4l4 4-4 4 M21 16H8 M12 20l-4-4 4-4',
+  // フォルダ(開いたフォルダ風の折れ線)＝ゲーム専用フォルダ選択(Scoped Storage対応の保存先)。
+  gameFolder: 'M3 7a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z',
   // 端末プロンプト風の枠と停止点＝CPUデバッガ。
   debugger: 'M4 5h16v14H4z M7 9l3 3-3 3 M12 15h5 M17 8h.01',
   // パッド本体(丸角枠)＋十字キー＋丸ボタン2つ＝ゲームパッド設定。
@@ -548,6 +552,9 @@ export function buildPlayerUI(
   const btnVirtualKbd = iconButton(ICONS.keyboard, t('toolbarVirtualKbd'));
   // ファイルマネージャ(FTPクライアント風2ペイン)。起動前(ライブラリ閲覧)でも使えるよう常に有効。
   const btnFileManager = iconButton(ICONS.fileTransfer, t('toolbarFileManager'));
+  // ゲーム専用フォルダ(Android Scoped Storage対応。File System Access APIで選んだ1フォルダへ
+  // 永続アクセス権を得る)。起動前でも選べるよう常に有効にする(ファイルマネージャ等と同様)。
+  const btnGameFolder = iconButton(ICONS.gameFolder, t('toolbarGameFolder'));
   const btnDebugger = iconButton(ICONS.debugger, t('toolbarDebugger'), 'debugger-open-btn');
   btnDebugger.setAttribute('data-debugger-open', 'true');
   // 入力設定(ゲームパッド+ホストキー再割り当て)。起動前でも接続確認・割当編集ができるよう常に有効
@@ -584,6 +591,7 @@ export function buildPlayerUI(
     romManager: btnRomManager,
     diskLibrary: btnDiskLibrary,
     fileManager: btnFileManager,
+    gameFolder: btnGameFolder,
     debuggerOpen: btnDebugger,
     help: btnHelp,
     language: btnLang,
@@ -844,7 +852,10 @@ export function buildPlayerUI(
   // PC-98配列ソフトキーボード。stageとfooterBarの間に常設(hiddenで開閉)。
   // テンキーブロックは非フルスクリーン時に帯が画面下へはみ出す主因のため既定で畳んでおく
   // (tenkey-hidden。開くたびに既定へ戻す。トグルキーは下でkbdRowEls構築後に追加する)。
-  const kbdPanel = el('div', { class: 'kbd-panel hidden tenkey-hidden' });
+  // 既定は1.5列モード(kbd-compact): 矢印/数字/スペース/リターンのみを表示する、
+  // Androidでの片手操作を想定した省スペース配列。フルQWERTY配列はトグルで切り替える
+  // (トグルボタンの配線はkbdRowEls構築後、tenkeyToggleBtnと同じ場所で行う)。
+  const kbdPanel = el('div', { class: 'kbd-panel hidden tenkey-hidden kbd-compact' });
   const heldOneshot = new Map<number, HTMLButtonElement>();
   const { rows: kbdRowEls, buttons: kbdKeyButtons } = buildKbdRows();
   // スキャンコード→ボタン群。setKeyIndicator() の参照テーブル。
@@ -854,6 +865,15 @@ export function buildPlayerUI(
     const list = kbdButtonsByCode.get(def.code);
     if (list) list.push(keyBtn);
     else kbdButtonsByCode.set(def.code, [keyBtn]);
+  }
+  // 「1.5列モード」(kbd-compact)で残すキー: 矢印/数字/スペース/リターンのみ。
+  // CSSの `.kbd-key:not([data-compact="show"])` がこの属性の有無だけで表示/非表示を切り替える。
+  const COMPACT_VISIBLE_LABELS = new Set([
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+    '←', '↓', '↑', '→', 'SPACE', 'RET',
+  ]);
+  for (const { def, button: keyBtn } of kbdKeyButtons) {
+    if (COMPACT_VISIBLE_LABELS.has(def.label)) keyBtn.dataset.compact = 'show';
   }
   for (const { def, button: keyBtn } of kbdKeyButtons) {
     {
@@ -914,6 +934,26 @@ export function buildPlayerUI(
   });
   const tenkeyToggleRow = kbdRowEls[KBD_TENKEY_ROW_START - 1];
   if (tenkeyToggleRow) tenkeyToggleRow.append(tenkeyToggleBtn);
+
+  // 1.5列(矢印/数字/スペース/リターンのみ)⇔フル(QWERTY全体)モードの切替。
+  // kbdPanelのkbd-compactクラスの有無だけで、既に作った同じボタン群のCSS表示を切り替える
+  // (data-compact='show'を付けたキーだけが1.5列モードで残る。上のCOMPACT_VISIBLE_LABELS参照)。
+  const compactToggleBtn = el(
+    'button',
+    { type: 'button', class: 'kbd-key', 'aria-pressed': 'false' },
+    [t('kbdToggleCompact')],
+  );
+  compactToggleBtn.addEventListener('click', () => {
+    const isFull = !kbdPanel.classList.toggle('kbd-compact');
+    compactToggleBtn.setAttribute('aria-pressed', isFull ? 'true' : 'false');
+    compactToggleBtn.classList.toggle('active', isFull);
+    scheduleRescale();
+  });
+  // 1.5列モードでも隠れないよう、常にdata-compact='show'を付け、かつ元々1.5列モードで
+  // 残る矢印キー行(このボタン自体が押しても行が空にならず折り畳まれない行)に置く。
+  compactToggleBtn.dataset.compact = 'show';
+  const arrowRow = kbdRowEls[KBD_TENKEY_ROW_START - 2];
+  if (arrowRow) arrowRow.append(compactToggleBtn);
 
   // バーチャルトラックパッド(入力パネルの第3の種類)。ソフトキーボードと同じく
   // 「画面とコンソールバーの間の帯」として常設する(hiddenで開閉)。
@@ -1010,6 +1050,7 @@ export function buildPlayerUI(
   }
 
   btnRomManager.addEventListener('click', () => openRomModal());
+  btnGameFolder.addEventListener('click', () => callbacks.onGameFolderPick());
   romCloseBtn.addEventListener('click', () => closeRomModal());
   romBackdrop.addEventListener('click', (e) => {
     if (e.target === romBackdrop) closeRomModal();
@@ -2390,6 +2431,8 @@ export function buildPlayerUI(
       btnFileManager.title = t('toolbarFileManager');
       btnFileManager.setAttribute('aria-label', t('toolbarFileManager'));
       fileManagerDialog.applyStrings();
+      btnGameFolder.title = t('toolbarGameFolder');
+      btnGameFolder.setAttribute('aria-label', t('toolbarGameFolder'));
       btnDebugger.title = t('toolbarDebugger');
       btnDebugger.setAttribute('aria-label', t('toolbarDebugger'));
       debuggerDialog.applyStrings();

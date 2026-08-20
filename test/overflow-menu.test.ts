@@ -29,7 +29,7 @@ describe('グループ定義', () => {
   it('オーバーフローはinput/disk/stateの3グループ', () => {
     expect(OVERFLOW_GROUP_ORDER).toEqual(['input', 'disk', 'state']);
     expect(OVERFLOW_GROUPS.input).toEqual(['mouseCapture', 'mouseResync', 'gamepad', 'pasteText']);
-    expect(OVERFLOW_GROUPS.disk).toEqual(['diskLibrary', 'fileManager']);
+    expect(OVERFLOW_GROUPS.disk).toEqual(['diskLibrary', 'fileManager', 'gameFolder']);
     expect(OVERFLOW_GROUPS.state).toEqual(['saveState', 'loadState', 'resetOriginal']);
     expect(OVERFLOW_DIRECT_ACTIONS).toEqual(['romManager', 'debuggerOpen', 'help', 'language']);
   });
