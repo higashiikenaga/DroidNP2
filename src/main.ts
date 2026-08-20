@@ -1837,7 +1837,22 @@ async function handlePasteText(text: string): Promise<void> {
   }
 }
 
+/**
+ * PWA用Service Workerの登録。AndroidのChromeで「ホーム画面に追加」インストールを
+ * 有効にし、再訪時のアプリシェル表示をオフラインでも成立させる(public/sw.js参照)。
+ * 非対応ブラウザ(古いiOS Safari等)では navigator.serviceWorker が無いため何もしない。
+ */
+function registerServiceWorker(): void {
+  if (!('serviceWorker' in navigator)) return;
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch((err) => {
+      console.warn('[WebNP2] service worker registration failed', err);
+    });
+  });
+}
+
 function init(): void {
+  registerServiceWorker();
   applyDocumentStrings();
   ui = buildPlayerUI(
     app!,
