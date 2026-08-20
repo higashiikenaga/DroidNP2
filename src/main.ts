@@ -16,6 +16,7 @@ import { Bridge } from './api/bridge.ts';
 import { WEBNP2_VERSION_FOOTER } from './version.ts';
 import * as db from './storage/db.ts';
 import { isGameFolderSupported, pickGameFolder } from './storage/game-folder.ts';
+import { acquireWakeLock, reacquireWakeLockIfDesired } from './api/wake-lock.ts';
 import type { DiskFile } from './core/module.ts';
 import {
   coreDiskAccess,
@@ -1765,7 +1766,17 @@ function syncHostKeyListeners(): void {
 // タブ切替・ウィンドウ非アクティブ化で押しっぱなしを残さない。
 window.addEventListener('blur', () => hostKeyHandlers.releaseAll());
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) hostKeyHandlers.releaseAll();
+  if (document.hidden) {
+    hostKeyHandlers.releaseAll();
+    return;
+  }
+  // 画面ロック解除等で再表示されたタイミング。Wake Lockはdocument.hidden化で
+  // ブラウザ側が自動解放するため、起動中なら再取得を試みる(acquireWakeLock参照)。
+  reacquireWakeLockIfDesired();
+  // バックグラウンド中にOS/ブラウザがAudioContextを一時停止することがある。
+  // ユーザー操作を待たず自動でresumeを試み、成功すればミュートバナーも消える
+  // (attemptResumeAudioと同じ経路。失敗時は従来通りクリック/キー入力で再試行)。
+  attemptResumeAudio();
 });
 
 function activeHostKeyProfile(store: HostKeyStore): { id: string; builtin?: boolean } | null {
@@ -2087,6 +2098,10 @@ function init(): void {
     updatePasteFeature();
     startPasteFeaturePolling();
     startDiskLampPolling();
+    // 画面消灯対策(Screen Wake Lock)。起動中は画面を消灯させない(コアのメインループや
+    // AudioContextがバックグラウンド化で止まる根本原因を未然に防ぐ)。非対応ブラウザ/
+    // 拒否時は何もしない(wake-lock.ts参照)。
+    void acquireWakeLock();
     // 起動前から接続されていたパッドをここで拾う(gamepadconnectedは起動前に既に発火済みのため)。
     // WebNP2のコアは1セッションで1回しかbootできない(以後isBootedがfalseに戻ることはない)ため、
     // ここで一度キー入力ポーリングを開始すれば十分(以後は起動/未起動でON/OFFし直す必要が無い)。
