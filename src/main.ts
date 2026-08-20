@@ -845,10 +845,36 @@ async function listStoredDiskImages(): Promise<db.StoredImage[]> {
 }
 
 /**
+ * 同梱FreeDOS(98)起動FD(public/freedos/fd98_2hd.xdf)を、ディスクライブラリに常に
+ * 1件として出るようにする。既に保存済み(前回起動/挿入等で一度でも使われた)なら何もしない。
+ * 未保存なら同梱イメージをfetchしてIndexedDBへ登録する(FREEDOS_SOURCE_KEYは固定キーのため、
+ * オーバーレイ2択/FDD1挿入ボタン等、他の経路と同じレコードを共有する)。
+ */
+async function ensureFreeDosInLibrary(): Promise<void> {
+  const existing = await db.get(FREEDOS_SOURCE_KEY);
+  if (existing) return;
+  try {
+    const bytes = await fetchDiskBytes(FREEDOS_IMAGE_URL, () => {});
+    await db.put({
+      sourceKey: FREEDOS_SOURCE_KEY,
+      url: FREEDOS_IMAGE_URL,
+      name: 'fd98_2hd.xdf',
+      displayName: 'FreeDOS(98) 起動FD',
+      bytes: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
+      savedAt: Date.now(),
+    });
+  } catch (err) {
+    console.warn('[WebNP2] failed to register bundled FreeDOS(98) into the library', err);
+  }
+}
+
+/**
  * ディスクライブラリ(IndexedDB保存済み)をグループ単位にまとめて返す。
  * アーカイブ由来で複数ディスクを含むものはフォルダ(group)1件、それ以外は単体(item)1件になる。
+ * 呼び出しのたびに同梱FreeDOS(98)が一覧に出るよう保証する(ensureFreeDosInLibrary参照)。
  */
 async function listDiskLibrary(): Promise<LibraryNode[]> {
+  await ensureFreeDosInLibrary();
   return buildLibraryNodes(await listStoredDiskImages(), classifyDroppedFile);
 }
 
