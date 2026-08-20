@@ -63,4 +63,12 @@ describe('classifyDroppedFile', () => {
     expect(classifyDroppedFile('readme.txt')).toBeNull();
     expect(classifyDroppedFile('noext')).toBeNull();
   });
+
+  it('.hdmはsize省略時FD、PC-98 2HD(約1.25MB)を明確に超えるサイズならHDDと判定する(アリスソフト系公認配布ゲームのHDD版.hdm対応)', () => {
+    expect(classifyDroppedFile('GAME.hdm')).toBe('fd');
+    expect(classifyDroppedFile('GAME.hdm', 1_228_800)).toBe('fd'); // 2HD一枚分
+    expect(classifyDroppedFile('GAME.hdm', 2 * 1024 * 1024)).toBe('fd'); // 閾値ちょうどはFD側
+    expect(classifyDroppedFile('GAME.hdm', 2 * 1024 * 1024 + 1)).toBe('hdd');
+    expect(classifyDroppedFile('GAME.hdm', 40 * 1024 * 1024)).toBe('hdd'); // 実際のHDD容量相当
+  });
 });

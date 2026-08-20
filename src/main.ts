@@ -294,7 +294,7 @@ async function resolveImage(
     const groupImages: RegisteredImage[] = [];
     // 展開順(groupIndex)を保つ。1枚だけのときにどれが選ばれるかを再訪時も安定させる。
     for (const item of [...storedGroupItems].sort((a, b) => (a.groupIndex ?? 0) - (b.groupIndex ?? 0))) {
-      const kind = classifyDroppedFile(item.name);
+      const kind = classifyDroppedFile(item.name, item.bytes.byteLength);
       if (!kind) continue;
       groupImages.push({ name: item.name, sourceKey: item.sourceKey, bytes: new Uint8Array(item.bytes), kind });
     }
@@ -883,7 +883,7 @@ async function bootFromLibrary(sourceKey: string): Promise<void> {
   if (bootStarted) return;
   const stored = await db.get(sourceKey);
   if (!stored) return;
-  const kind = classifyDroppedFile(stored.name);
+  const kind = classifyDroppedFile(stored.name, stored.bytes.byteLength);
   if (!kind) return;
 
   const pending: PendingImage = {
@@ -911,7 +911,7 @@ async function setHddFromLibrary(sourceKey: string): Promise<void> {
   if (bootStarted) return;
   const stored = await db.get(sourceKey);
   if (!stored) return;
-  if (classifyDroppedFile(stored.name) !== 'hdd') return;
+  if (classifyDroppedFile(stored.name, stored.bytes.byteLength) !== 'hdd') return;
 
   pendingBoot.hdd = {
     slot: 'hdd',
@@ -1065,7 +1065,7 @@ interface RegisteredImage {
  */
 async function expandFileToImages(file: File): Promise<RegisteredImage[]> {
   if (!isArchive(file.name)) {
-    const kind = classifyDroppedFile(file.name);
+    const kind = classifyDroppedFile(file.name, file.size);
     if (!kind) return [];
     const bytes = new Uint8Array(await file.arrayBuffer());
     return [{ name: file.name, sourceKey: fileKeyFor(file.name, file.size), bytes, kind }];
@@ -1090,7 +1090,7 @@ async function expandArchiveBytesToImages(
   const images: RegisteredImage[] = [];
   for (const entry of entries) {
     const name = baseNameOf(entry.name);
-    const kind = classifyDroppedFile(name);
+    const kind = classifyDroppedFile(name, entry.data.byteLength);
     if (!kind) continue;
     images.push({ name, sourceKey: `${groupId}/${entry.name}`, bytes: entry.data, kind });
   }

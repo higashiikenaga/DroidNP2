@@ -11,10 +11,10 @@ const EXCLUDED_KEY_PREFIXES = ['rom:', 'state:'];
 /** ライブラリ一覧の対象になるレコードか(ROM/ステートを除き、拡張子がディスクイメージのもの)。 */
 export function isLibraryDiskRecord(
   item: StoredImage,
-  classify: (name: string) => 'hdd' | 'fd' | null,
+  classify: (name: string, size?: number) => 'hdd' | 'fd' | null,
 ): boolean {
   if (EXCLUDED_KEY_PREFIXES.some((prefix) => item.sourceKey.startsWith(prefix))) return false;
-  return classify(item.name) !== null;
+  return classify(item.name, item.bytes.byteLength) !== null;
 }
 
 /**
@@ -42,13 +42,13 @@ export function classifyLibUrlResult(images: Array<{ sourceKey: string }>, group
  */
 export function buildLibraryNodes(
   stored: StoredImage[],
-  classify: (name: string) => 'hdd' | 'fd' | null,
+  classify: (name: string, size?: number) => 'hdd' | 'fd' | null,
 ): LibraryNode[] {
   const groups = new Map<string, { name: string; entries: LibraryEntry[]; savedAt: number }>();
   const nodes: LibraryNode[] = [];
 
   for (const item of stored) {
-    const kind = classify(item.name);
+    const kind = classify(item.name, item.bytes.byteLength);
     if (!kind) continue;
     const entry: LibraryEntry = {
       sourceKey: item.sourceKey,

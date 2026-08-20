@@ -449,7 +449,7 @@ export class WebNP2 extends TypedEmitter<WebNP2EventMap> {
     const entries: Array<{ sourceKey: string; name: string; size: number; savedAt: number; kind: 'hdd' | 'fd' }> = [];
     for (const item of all) {
       if (item.sourceKey.startsWith('rom:') || item.sourceKey.startsWith('state:')) continue;
-      const kind = classifyDiskKind(item.name);
+      const kind = classifyDiskKind(item.name, item.bytes.byteLength);
       if (!kind) continue;
       entries.push({
         sourceKey: item.sourceKey,
@@ -636,7 +636,7 @@ export class WebNP2 extends TypedEmitter<WebNP2EventMap> {
         // HDD は読み出しが重いので、定期実行では最短間隔を空ける(force のときは無視)。
         if (
           !force &&
-          classifyDiskKind(entry.name) === 'hdd' &&
+          entry.slot === 'hdd' &&
           entry.lastSavedAt !== undefined &&
           Date.now() - entry.lastSavedAt < HDD_MIN_INTERVAL_MS
         ) {
@@ -945,14 +945,14 @@ export class WebNP2 extends TypedEmitter<WebNP2EventMap> {
   }
 
   /** 変更系ライブラリ操作の前提チェック(マウント中/起動後HDD)。問題があればErrorを投げる。 */
-  private assertLibraryWritable(sourceKey: string, name: string): void {
+  private assertLibraryWritable(sourceKey: string, name: string, size?: number): void {
     if (this.isSourceKeyMounted(sourceKey)) {
       throw new DiskError('mountedUseSlotApi', 'マウント中のイメージはスロット側APIを使ってください');
     }
     // HDDはコアが実行中の挿抜に非対応で、書き換えてもDOS側のキャッシュと衝突する。
     // 未マウントの別イメージなら理屈上は安全だが、「動いてる方は書けないのに隣は書ける」
     // というUIは誤解を招くため、起動後は一律に禁止して「HDDは起動前だけ」に統一する。
-    if (classifyDiskKind(name) === 'hdd' && this.isBooted()) {
+    if (classifyDiskKind(name, size) === 'hdd' && this.isBooted()) {
       throw new DiskError('hddEditBeforeBootOnly', 'HDDイメージの編集は起動前のみ可能です');
     }
   }
@@ -974,7 +974,7 @@ export class WebNP2 extends TypedEmitter<WebNP2EventMap> {
   /** ライブラリ(未マウント)イメージへファイルを書き込み、IndexedDBへ書き戻す。 */
   async libraryWriteFile(sourceKey: string, path: string, data: Uint8Array): Promise<void> {
     const { stored, image, vol } = await this.openLibraryFat(sourceKey);
-    this.assertLibraryWritable(sourceKey, stored.name);
+    this.assertLibraryWritable(sourceKey, stored.name, stored.bytes.byteLength);
     fatWriteFile(vol, path, data);
     await this.putLibraryImage(stored, image);
   }
@@ -982,7 +982,7 @@ export class WebNP2 extends TypedEmitter<WebNP2EventMap> {
   /** ライブラリ(未マウント)イメージからファイルを削除し、IndexedDBへ書き戻す。 */
   async libraryDeleteFile(sourceKey: string, path: string): Promise<void> {
     const { stored, image, vol } = await this.openLibraryFat(sourceKey);
-    this.assertLibraryWritable(sourceKey, stored.name);
+    this.assertLibraryWritable(sourceKey, stored.name, stored.bytes.byteLength);
     fatDeleteFile(vol, path);
     await this.putLibraryImage(stored, image);
   }
@@ -990,7 +990,7 @@ export class WebNP2 extends TypedEmitter<WebNP2EventMap> {
   /** ライブラリ(未マウント)イメージ内にディレクトリを作成し、IndexedDBへ書き戻す。 */
   async libraryMakeDir(sourceKey: string, path: string): Promise<void> {
     const { stored, image, vol } = await this.openLibraryFat(sourceKey);
-    this.assertLibraryWritable(sourceKey, stored.name);
+    this.assertLibraryWritable(sourceKey, stored.name, stored.bytes.byteLength);
     fatMakeDir(vol, path);
     await this.putLibraryImage(stored, image);
   }
@@ -1923,11 +1923,11 @@ const HDD_EXTENSIONS = ['.thd', '.hdi', '.nhd', '.hdd'];
 // src/ui/player.ts の FD_EXTENSIONS と同じ一覧(NP2kai本体の np2_isfdimage() 準拠、
 // .bin は誤検出防止のため意図的に除外)。二重管理だが、この判定はMCPブリッジの
 // listDiskLibrary()とHDD書き込みスロットリングにのみ使うため player.ts には依存させない。
+// .hdm はサイズ判定が必要なためこのリストには含めず、classifyDiskKind内で個別に扱う。
 const FD_EXTENSIONS = [
   '.d88',
   '.d98',
   '.fdi',
-  '.hdm',
   '.xdf',
   '.dup',
   '.2hd',
@@ -1950,10 +1950,20 @@ const FD_EXTENSIONS = [
   '.ima',
 ];
 
-/** ファイル名の拡張子からディスク種別(hdd/fd)を判定する。判定不能ならnull。 */
-function classifyDiskKind(name: string): 'hdd' | 'fd' | null {
+// .hdm はFD/HDD両方の意味で使われる(NP2kai本体はFD画像として扱うが、アリスソフト系の
+// 公認配布ゲーム等ではHDDイメージとしても配布される)。拡張子だけでは決め切れないため、
+// サイズで判定する: PC-98のFD(2HD)は最大でも1.25MB程度なので、それを明確に超えるものは
+// HDDイメージとみなす。サイズが分からない呼び出し元(size省略時)は、コア本体の挙動に
+// 合わせて従来通りFDとして扱う。
+const HDM_FD_MAX_BYTES = 2 * 1024 * 1024;
+
+/** ファイル名の拡張子(と分かればサイズ)からディスク種別(hdd/fd)を判定する。判定不能ならnull。 */
+function classifyDiskKind(name: string, size?: number): 'hdd' | 'fd' | null {
   const lower = name.toLowerCase();
   if (HDD_EXTENSIONS.some((ext) => lower.endsWith(ext))) return 'hdd';
+  if (lower.endsWith('.hdm')) {
+    return size !== undefined && size > HDM_FD_MAX_BYTES ? 'hdd' : 'fd';
+  }
   if (FD_EXTENSIONS.some((ext) => lower.endsWith(ext))) return 'fd';
   return null;
 }

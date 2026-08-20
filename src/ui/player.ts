@@ -235,17 +235,20 @@ export interface PlayerUI {
 }
 
 const HDD_EXTENSIONS = ['.thd', '.hdi', '.nhd', '.hdd'];
+/** 選択ダイアログのaccept属性用。HDD/FD双方の意味で使われる.hdmはここへ別途足す(下記参照)。 */
+const HDD_INPUT_ACCEPT = [...HDD_EXTENSIONS, '.hdm'].join(',');
 // NP2kai本体(NP2kai/sdl/np2.c の np2_isfdimage())が受け付けるFD拡張子に準拠。
 // 実測(2026-08-13): .TFD 2枚入りZIPが「圧縮ファイル内にディスクイメージが見つかりません
 // でした」になった原因はこのリストが本体より狭かったこと。
 // .bin だけは意図的に除外する: 汎用的すぎて、ZIP同梱のROM/その他バイナリを誤ってFDと
 // 判定してしまう(コア本体はコマンドライン単体指定のみを想定しており、ZIP展開時の
 // 誤爆リスクをコアほど許容できない)。
+// .hdm はサイズ判定が必要なためこのリストには含めず、classifyDroppedFile内で個別に扱う
+// (アリスソフト系の公認配布ゲーム等、.hdmがHDDイメージとして配布されるケースがあるため)。
 const FD_EXTENSIONS = [
   '.d88',
   '.d98',
   '.fdi',
-  '.hdm',
   '.xdf',
   '.dup',
   '.2hd',
@@ -268,22 +271,32 @@ const FD_EXTENSIONS = [
   '.ima',
 ];
 const ARCHIVE_EXTENSIONS = ['.zip', '.lzh'];
-/** ファイル選択ダイアログのaccept属性(ディスクイメージ + 圧縮ファイル)。 */
-const FD_INPUT_ACCEPT = [...FD_EXTENSIONS, ...ARCHIVE_EXTENSIONS].join(',');
+/** ファイル選択ダイアログのaccept属性(ディスクイメージ + 圧縮ファイル)。.hdmはFD/HDD両対応のため個別に足す。 */
+const FD_INPUT_ACCEPT = [...FD_EXTENSIONS, '.hdm', ...ARCHIVE_EXTENSIONS].join(',');
 
-/** ディスクイメージの種別を拡張子から判定する。アーカイブは対象外(nullを返す)。 */
-export function classifyDroppedFile(name: string): 'hdd' | 'fd' | null {
+// PC-98のFD(2HD)は最大でも1.25MB程度のため、.hdmでこれを明確に超えるものはHDDイメージとみなす
+// (アリスソフト系の公認配布ゲーム等の実例に合わせた閾値。webnp2.tsのHDM_FD_MAX_BYTESと同じ値)。
+const HDM_FD_MAX_BYTES = 2 * 1024 * 1024;
+
+/**
+ * ディスクイメージの種別を拡張子(と分かればサイズ)から判定する。アーカイブは対象外(nullを返す)。
+ * sizeを渡せない呼び出し元では、.hdmはコア本体(NP2kai)の既定に合わせてFDとして扱う。
+ */
+export function classifyDroppedFile(name: string, size?: number): 'hdd' | 'fd' | null {
   const lower = name.toLowerCase();
   if (HDD_EXTENSIONS.some((ext) => lower.endsWith(ext))) return 'hdd';
+  if (lower.endsWith('.hdm')) {
+    return size !== undefined && size > HDM_FD_MAX_BYTES ? 'hdd' : 'fd';
+  }
   if (FD_EXTENSIONS.some((ext) => lower.endsWith(ext))) return 'fd';
   return null;
 }
 
 /** ドロップ/選択されたファイルの受付種別。ディスクイメージに加えZIP/LZHも受け付ける。 */
-export function classifyDroppedInput(name: string): DroppedKind | null {
+export function classifyDroppedInput(name: string, size?: number): DroppedKind | null {
   const lower = name.toLowerCase();
   if (ARCHIVE_EXTENSIONS.some((ext) => lower.endsWith(ext))) return 'archive';
-  return classifyDroppedFile(name);
+  return classifyDroppedFile(name, size);
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -686,7 +699,7 @@ export function buildPlayerUI(
   const hddInput = el('input', {
     type: 'file',
     class: 'fd-file-input',
-    accept: HDD_EXTENSIONS.join(','),
+    accept: HDD_INPUT_ACCEPT,
   });
   const hddInsertBtn = iconButton(ICONS.insert, t('hddInsertSet'));
   // ライブラリから直接セットする(FDの「ライブラリから挿入」と同じ操作感)。起動前のみ。
@@ -731,7 +744,7 @@ export function buildPlayerUI(
       slotEl.classList.remove('dropzone-active');
       const file = e.dataTransfer?.files?.[0];
       if (!file) return;
-      const kind = classifyDroppedInput(file.name);
+      const kind = classifyDroppedInput(file.name, file.size);
       if (kind !== 'fd' && kind !== 'archive') {
         alert(t('dropUnsupported'));
         return;
@@ -2113,7 +2126,7 @@ export function buildPlayerUI(
     if (!fileList || fileList.length === 0) return;
     const dropped: DroppedFile[] = [];
     for (const file of Array.from(fileList)) {
-      const kind = classifyDroppedInput(file.name);
+      const kind = classifyDroppedInput(file.name, file.size);
       if (kind) {
         dropped.push({ kind, file });
       }
