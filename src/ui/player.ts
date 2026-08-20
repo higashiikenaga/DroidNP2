@@ -744,8 +744,13 @@ export function buildPlayerUI(
       slotEl.classList.remove('dropzone-active');
       const file = e.dataTransfer?.files?.[0];
       if (!file) return;
+      // .hdmはFD/HDD両方の意味で使われ、サイズだけでは判定を誤りうる(アリスソフト系の
+      // HDD専用ゲーム等)。FDスロットへ明示的にドロップした時点で「FDとして扱う」という
+      // 利用者の意図は明確なので、サイズ判定に関わらずここでは受け付ける
+      // (実際の挿入処理 handleInsertFd 側も非アーカイブ時は種別を再判定しない)。
+      const isHdm = /\.hdm$/i.test(file.name);
       const kind = classifyDroppedInput(file.name, file.size);
-      if (kind !== 'fd' && kind !== 'archive') {
+      if (!isHdm && kind !== 'fd' && kind !== 'archive') {
         alert(t('dropUnsupported'));
         return;
       }
@@ -2126,7 +2131,13 @@ export function buildPlayerUI(
     if (!fileList || fileList.length === 0) return;
     const dropped: DroppedFile[] = [];
     for (const file of Array.from(fileList)) {
-      const kind = classifyDroppedInput(file.name, file.size);
+      let kind = classifyDroppedInput(file.name, file.size);
+      // .hdmはFD/HDD両方の意味で使われ、サイズだけでは判定を誤りうる(アリスソフト系の
+      // HDD専用ゲーム等)。ドロップ先を特定しないこの汎用ドロップでは判定材料がサイズしか
+      // 無いため、自動判定に任せず利用者へ直接確認する。
+      if (/\.hdm$/i.test(file.name)) {
+        kind = confirm(t('confirmHdmAsHdd', { name: file.name })) ? 'hdd' : 'fd';
+      }
       if (kind) {
         dropped.push({ kind, file });
       }

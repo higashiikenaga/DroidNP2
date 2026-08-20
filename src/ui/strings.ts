@@ -74,6 +74,8 @@ interface Dict {
   statusFreeDosInserted(args: { drive: number }): string;
   dropUnsupported(): string;
   dropConfirm(args: { count: number; names: string }): string;
+  /** .hdmファイルをドロップした際、HDD/FDどちらとして扱うか確認するダイアログの文言(OK=HDD, キャンセル=FD)。 */
+  confirmHdmAsHdd(args: { name: string }): string;
   diskReplaceUnsupported(): string;
   /** ドロップされたファイル(圧縮ファイル含む)にディスクイメージが1つも無かった場合。 */
   dropNoDiskImage(): string;
@@ -514,6 +516,8 @@ const STRINGS: Record<Lang, Dict> = {
     statusHddBlankCreated: ({ name }) =>
       `ブランクHDD ${name} を作成してセットしました(40MB・FAT16)。単体では起動できないため、FDからDOSを起動してデータ用ドライブとして使ってください。`,
     dropConfirm: ({ count, names }) => `${count}件のファイルを読み込みます: ${names}\nよろしいですか？`,
+    confirmHdmAsHdd: ({ name }) =>
+      `${name}\n.hdmファイルはFD/HDD両方の可能性があります。\nHDD用ディスクとして扱いますか？\n(OK: HDDとして挿入 / キャンセル: FDとして挿入)`,
     diskReplaceUnsupported: () =>
       '起動後のディスク差し替えは Phase 2 で対応予定です。ページを再読み込みしてください。',
     noMountedImage: () => 'マウント中のイメージがありません。',
@@ -870,6 +874,8 @@ const STRINGS: Record<Lang, Dict> = {
     statusHddBlankCreated: ({ name }) =>
       `Created and set blank HDD ${name} (40MB, FAT16). It is not bootable on its own — boot DOS from a floppy and use it as a data drive.`,
     dropConfirm: ({ count, names }) => `Loading ${count} file(s): ${names}\nContinue?`,
+    confirmHdmAsHdd: ({ name }) =>
+      `${name}\n.hdm files can be either FD or HDD images.\nTreat this as an HDD disk?\n(OK: insert as HDD / Cancel: insert as FD)`,
     diskReplaceUnsupported: () =>
       'Swapping disks after boot is planned for Phase 2. Please reload the page.',
     noMountedImage: () => 'No image is currently mounted.',

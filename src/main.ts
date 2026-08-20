@@ -1062,10 +1062,15 @@ interface RegisteredImage {
  * 1つの File をディスクイメージ群に展開する。
  * ZIP/LZH の場合は中身を取り出し、ディスクイメージ以外(readme等)は捨てる。
  * 複数枚を含むアーカイブは1グループとしてまとめ、ライブラリでフォルダ表示される。
+ *
+ * hintKindを渡した場合、拡張子/サイズによる自動判定(classifyDroppedFile)より優先する。
+ * HDDスロットの「挿入」ボタン等、呼び出し元(UI操作そのもの)が種別を確定させている場合に、
+ * .hdm(FD/HDD両方の意味で使われ、サイズだけでは判定を誤りうる)がここで再判定されて
+ * 元の意図と食い違う(例: HDD専用ゲームなのにFD扱いされる)のを防ぐ。
  */
-async function expandFileToImages(file: File): Promise<RegisteredImage[]> {
+async function expandFileToImages(file: File, hintKind?: 'hdd' | 'fd'): Promise<RegisteredImage[]> {
   if (!isArchive(file.name)) {
-    const kind = classifyDroppedFile(file.name, file.size);
+    const kind = hintKind ?? classifyDroppedFile(file.name, file.size);
     if (!kind) return [];
     const bytes = new Uint8Array(await file.arrayBuffer());
     return [{ name: file.name, sourceKey: fileKeyFor(file.name, file.size), bytes, kind }];
@@ -1128,13 +1133,20 @@ async function registerImagesToLibrary(
  * ドロップ/選択された File 群を展開し、ディスクイメージをライブラリ(IndexedDB)へ保存する。
  * 2枚以上を含むアーカイブはグループ(フォルダ)としてまとめる。
  * 戻り値は保存したイメージ(起動/挿入に流用するためバイト列を保持したまま返す)。
+ *
+ * 各要素にhintKindを付けると、そのファイル(非アーカイブのみ)の種別判定は
+ * classifyDroppedFileの自動判定より優先される(expandFileToImages参照)。
  */
-async function registerFilesToLibrary(files: File[]): Promise<RegisteredImage[]> {
+async function registerFilesToLibrary(
+  files: Array<File | { file: File; hintKind?: 'hdd' | 'fd' }>,
+): Promise<RegisteredImage[]> {
   const registered: RegisteredImage[] = [];
-  for (const file of files) {
+  for (const entry of files) {
+    const file = entry instanceof File ? entry : entry.file;
+    const hintKind = entry instanceof File ? undefined : entry.hintKind;
     let images: RegisteredImage[];
     try {
-      images = await expandFileToImages(file);
+      images = await expandFileToImages(file, hintKind);
     } catch (err) {
       setStatusT(
         'statusArchiveFailed',
@@ -1314,7 +1326,9 @@ async function handleDroppedFiles(files: DroppedFile[]): Promise<void> {
     return;
   }
 
-  const registered = await registerFilesToLibrary(files.map((f) => f.file));
+  const registered = await registerFilesToLibrary(
+    files.map((f) => ({ file: f.file, hintKind: f.kind === 'archive' ? undefined : f.kind })),
+  );
   if (registered.length === 0) {
     alert(t('dropNoDiskImage'));
     return;
