@@ -1961,6 +1961,33 @@ footer.app-footer a {
   text-align: left;
 }
 
+/*
+ * 横画面でのネイティブ全画面表示中、ソフトキーボードを表示している場合の特別レイアウト。
+ * 全画面化の対象は canvas 単体ではなく .console-card 全体にしてある(requestNativeFullscreen
+ * 参照)ため、キーボードは兄弟要素のまま全画面中も描画できる。カード自体は
+ * Fullscreen APIのUA既定スタイルで画面いっぱいに広がるので、実行画面(.stage)側だけ
+ * player.ts側のrescale()でビューポート幅の6割程度に抑えて左上に小さく表示し、
+ * ソフトキーボードは右下へ絶対配置のオーバーレイとして重ねる。
+ * クラスの付け外し自体はplayer.ts側のrescale()がdocument.fullscreenElement/
+ * orientationを見て行う(CSSだけでは「キーボード表示中かどうか」を判定できないため)。
+ */
+.console-card.fs-kbd-corner .kbd-panel {
+  position: absolute;
+  right: 12px;
+  bottom: var(--fs-kbd-bottom-offset, 12px);
+  left: auto;
+  width: min(58vw, 640px);
+  max-height: 62vh;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  z-index: 20;
+}
+/* キーボードのオーバーレイと重なっても操作できるよう、ツールバー側を最前面にする。 */
+.console-card.fs-kbd-corner .console-footer {
+  position: relative;
+  z-index: 21;
+}
+
 /* 疑似フルスクリーン。
    iPhone の WebKit は <video> 以外の Fullscreen API を持たず、ネイティブの
    全画面表示ができない。代わりにページ側のクロームを畳んで実行画面へ

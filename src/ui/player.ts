@@ -52,6 +52,21 @@ function nativeFullscreenSupported(el: HTMLElement): boolean {
 }
 
 /**
+ * ネイティブ全画面表示を要求する。canvas単体ではなくカード全体(canvas+ソフトキーボード等)を
+ * 対象にする: Fullscreen API は対象要素の子孫しか描画されないため、canvasだけを全画面化すると
+ * 兄弟要素であるソフトキーボードが全画面中に表示できなくなる(横画面全画面時にキーボードを
+ * 右下へ重ねて出す機能はこれが前提)。
+ */
+function requestNativeFullscreen(el: HTMLElement): void {
+  const withWebkit = el as HTMLElement & { webkitRequestFullscreen?: () => void };
+  if (typeof el.requestFullscreen === 'function') {
+    void el.requestFullscreen();
+  } else if (typeof withWebkit.webkitRequestFullscreen === 'function') {
+    withWebkit.webkitRequestFullscreen();
+  }
+}
+
+/**
  * 現在コアが出力している画面サイズ。
  *
  * PC-98 は 640x400 だけでなく 640x480(31kHz/480ライン) にも切り替わり、
@@ -452,21 +467,41 @@ function rescale(canvas: HTMLCanvasElement, stage: HTMLElement, card: HTMLElemen
   const kbdVisible = !chrome.kbdPanel.classList.contains('hidden');
   const trackpadVisible = !chrome.trackpadPanel.classList.contains('hidden');
 
+  // 横画面ネイティブ全画面中にソフトキーボードを表示している場合、キーボードは
+  // カード右下へ浮かせたオーバーレイにする(実行画面を左上に小さく表示し、そこへ
+  // キーボードを重ねない)。canvasだけを全画面化すると兄弟要素のkbdPanelが描画できなく
+  // なるため、全画面化の対象はcanvasではなくcard(canvas+kbdPanel等の親)にしてある
+  // (requestNativeFullscreen呼び出し側参照)。
+  const fsDoc = document as Document & { webkitFullscreenElement?: Element | null };
+  const isFullscreen = document.fullscreenElement === card || fsDoc.webkitFullscreenElement === card;
+  const isLandscape = window.matchMedia('(orientation: landscape)').matches;
+  const cornerKbdMode = isFullscreen && isLandscape && kbdVisible && !trackpadVisible;
+  card.classList.toggle('fs-kbd-corner', cornerKbdMode);
+  card.style.setProperty(
+    '--fs-kbd-bottom-offset',
+    cornerKbdMode ? `${chrome.footerBar.getBoundingClientRect().height}px` : '0px',
+  );
+
   const reservedHeight =
     (chrome.pageHeader?.getBoundingClientRect().height ?? 0) +
     (chrome.pageFooter?.getBoundingClientRect().height ?? 0) +
     chrome.footerBar.getBoundingClientRect().height +
     chrome.statusPanel.getBoundingClientRect().height +
     (progressActive ? chrome.progressWrap.getBoundingClientRect().height : 0) +
-    (kbdVisible ? chrome.kbdPanel.getBoundingClientRect().height : 0) +
+    // cornerKbdMode中はkbdPanelがposition:absoluteのオーバーレイになり、通常のフローの
+    // 高さを占めなくなる(実行画面の縮小要因に含めない)。
+    (kbdVisible && !cornerKbdMode ? chrome.kbdPanel.getBoundingClientRect().height : 0) +
     (trackpadVisible ? chrome.trackpadPanel.getBoundingClientRect().height : 0) +
     appPaddingV +
     gapsInApp;
 
   // reservedHeight の再計測誤差やスクロールバー分の余白として少し余裕を持たせる。
+  // cornerKbdMode中は実行画面を意図的に小さく(画面左上に収まる程度に)するため、
+  // 幅を viewport の6割程度までに制限する(残りをキーボードのオーバーレイに使う)。
   const maxHeight = Math.min(window.innerHeight - reservedHeight - 4, 960);
+  const effectiveMaxWidth = cornerKbdMode ? Math.min(maxWidth, window.innerWidth * 0.6) : maxWidth;
   const native = nativeSize(canvas);
-  const widthFit = maxWidth / native.w;
+  const widthFit = effectiveMaxWidth / native.w;
   const fit = Math.min(widthFit, maxHeight / native.h);
   // 1倍未満の端数スケールは「幅」だけを基準にする。高さ由来で縮めると、
   // カード幅縮小→ツールバー折返しで周辺高さ増→さらに縮小…の収縮ループに陥るため
@@ -484,7 +519,11 @@ function rescale(canvas: HTMLCanvasElement, stage: HTMLElement, card: HTMLElemen
   canvas.style.height = `${h}px`;
   stage.style.width = `${w}px`;
   stage.style.height = `${h}px`;
-  card.style.width = `${w}px`;
+  // cornerKbdMode中はcardを実行画面の幅に合わせず、全画面いっぱいに広げたまま
+  // (CSSの.fs-kbd-corner側)にする。キーボードのオーバーレイをカード右端に
+  // 寄せるための基準がcanvas幅ではなく画面幅になるようにするため。
+  if (!cornerKbdMode) card.style.width = `${w}px`;
+  else card.style.removeProperty('width');
 }
 
 export function buildPlayerUI(
@@ -884,11 +923,12 @@ export function buildPlayerUI(
     if (list) list.push(keyBtn);
     else kbdButtonsByCode.set(def.code, [keyBtn]);
   }
-  // 「1.5列モード」(kbd-compact)で残すキー: 矢印/数字/スペース/リターンのみ。
+  // 「1.5列モード」(kbd-compact)で残すキー: 矢印/数字/スペース/リターン+A/B/C/D/:。
   // CSSの `.kbd-key:not([data-compact="show"])` がこの属性の有無だけで表示/非表示を切り替える。
   const COMPACT_VISIBLE_LABELS = new Set([
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
     '←', '↓', '↑', '→', 'SPACE', 'RET',
+    'A', 'B', 'C', 'D', ':',
   ]);
   for (const { def, button: keyBtn } of kbdKeyButtons) {
     if (COMPACT_VISIBLE_LABELS.has(def.label)) keyBtn.dataset.compact = 'show';
@@ -2061,8 +2101,8 @@ export function buildPlayerUI(
     }
   });
   btnFullscreen.addEventListener('click', () => {
-    if (nativeFullscreenSupported(canvas)) {
-      callbacks.onFullscreen();
+    if (nativeFullscreenSupported(card)) {
+      requestNativeFullscreen(card);
       return;
     }
     // iPhone の WebKit は <video> 以外の Fullscreen API を持たないため、
@@ -2166,6 +2206,10 @@ export function buildPlayerUI(
     trackpadPanel,
   };
   window.addEventListener('resize', () => rescale(canvas, stage, card, rescaleChrome));
+  // 全画面の開始/終了そのものではresizeが発火しない場合があるため個別に監視する
+  // (fs-kbd-corner判定はrescale()内でdocument.fullscreenElementを見て行う)。
+  document.addEventListener('fullscreenchange', () => rescale(canvas, stage, card, rescaleChrome));
+  document.addEventListener('webkitfullscreenchange', () => rescale(canvas, stage, card, rescaleChrome));
   rescale(canvas, stage, card, rescaleChrome);
 
   // 即時+次フレーム+レイアウト沈静後の3回再計算する。スクロールバーの出没や
